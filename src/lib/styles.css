@@ -11,6 +11,86 @@
   --ac-accent-soft: oklch(0.93 0.025 188);
   --ac-danger: oklch(0.48 0.08 28);
   --ac-font: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  --ac-grid-line: oklch(0.9 0.004 255);
+  --ac-glass-bg:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.44), rgba(245, 248, 252, 0.22)),
+    rgba(255, 255, 255, 0.18);
+  --ac-glass-border: rgba(255, 255, 255, 0.58);
+  --ac-glass-hover: rgba(255, 255, 255, 0.46);
+  --ac-tooltip-bg: oklch(0.22 0.007 255 / 0.94);
+  --ac-tooltip-ink: white;
+  --ac-group-stripe: oklch(0.91 0.01 188);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+    --ac-canvas: oklch(0.18 0.006 255);
+    --ac-surface: oklch(0.235 0.007 255);
+    --ac-ink: oklch(0.94 0.004 255);
+    --ac-muted: oklch(0.7 0.008 255);
+    --ac-line: oklch(0.36 0.008 255);
+    --ac-line-strong: oklch(0.52 0.012 255);
+    --ac-soft: oklch(0.29 0.008 255);
+    --ac-accent: oklch(0.74 0.055 188);
+    --ac-accent-soft: oklch(0.34 0.04 188);
+    --ac-danger: oklch(0.72 0.11 28);
+    --ac-grid-line: oklch(0.3 0.006 255);
+    --ac-glass-bg:
+      linear-gradient(180deg, rgba(42, 48, 58, 0.48), rgba(18, 22, 30, 0.28)),
+      rgba(13, 17, 24, 0.22);
+    --ac-glass-border: rgba(255, 255, 255, 0.18);
+    --ac-glass-hover: rgba(255, 255, 255, 0.13);
+    --ac-tooltip-bg: oklch(0.92 0.004 255 / 0.94);
+    --ac-tooltip-ink: oklch(0.18 0.006 255);
+    --ac-group-stripe: oklch(0.43 0.04 188);
+  }
+}
+
+.ac-theme-light {
+  color-scheme: light;
+  --ac-canvas: oklch(0.985 0.004 255);
+  --ac-surface: oklch(0.995 0.003 255);
+  --ac-ink: oklch(0.21 0.007 255);
+  --ac-muted: oklch(0.49 0.008 255);
+  --ac-line: oklch(0.84 0.006 255);
+  --ac-line-strong: oklch(0.67 0.012 255);
+  --ac-soft: oklch(0.955 0.006 255);
+  --ac-accent: oklch(0.38 0.04 188);
+  --ac-accent-soft: oklch(0.93 0.025 188);
+  --ac-danger: oklch(0.48 0.08 28);
+  --ac-grid-line: oklch(0.9 0.004 255);
+  --ac-glass-bg:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.44), rgba(245, 248, 252, 0.22)),
+    rgba(255, 255, 255, 0.18);
+  --ac-glass-border: rgba(255, 255, 255, 0.58);
+  --ac-glass-hover: rgba(255, 255, 255, 0.46);
+  --ac-tooltip-bg: oklch(0.22 0.007 255 / 0.94);
+  --ac-tooltip-ink: white;
+  --ac-group-stripe: oklch(0.91 0.01 188);
+}
+
+.ac-theme-dark {
+  color-scheme: dark;
+  --ac-canvas: oklch(0.18 0.006 255);
+  --ac-surface: oklch(0.235 0.007 255);
+  --ac-ink: oklch(0.94 0.004 255);
+  --ac-muted: oklch(0.7 0.008 255);
+  --ac-line: oklch(0.36 0.008 255);
+  --ac-line-strong: oklch(0.52 0.012 255);
+  --ac-soft: oklch(0.29 0.008 255);
+  --ac-accent: oklch(0.74 0.055 188);
+  --ac-accent-soft: oklch(0.34 0.04 188);
+  --ac-danger: oklch(0.72 0.11 28);
+  --ac-grid-line: oklch(0.3 0.006 255);
+  --ac-glass-bg:
+    linear-gradient(180deg, rgba(42, 48, 58, 0.48), rgba(18, 22, 30, 0.28)),
+    rgba(13, 17, 24, 0.22);
+  --ac-glass-border: rgba(255, 255, 255, 0.18);
+  --ac-glass-hover: rgba(255, 255, 255, 0.13);
+  --ac-tooltip-bg: oklch(0.92 0.004 255 / 0.94);
+  --ac-tooltip-ink: oklch(0.18 0.006 255);
+  --ac-group-stripe: oklch(0.43 0.04 188);
 }
 
 .ac-shell,
@@ -43,8 +123,8 @@
 
 .ac-grid {
   background-image:
-    linear-gradient(to right, oklch(0.9 0.004 255) 1px, transparent 1px),
-    linear-gradient(to bottom, oklch(0.9 0.004 255) 1px, transparent 1px);
+    linear-gradient(to right, var(--ac-grid-line) 1px, transparent 1px),
+    linear-gradient(to bottom, var(--ac-grid-line) 1px, transparent 1px);
   background-size: 48px 48px;
   inset: 0;
   opacity: 0.42;
@@ -305,17 +385,22 @@
 
 .ac-group-node {
   background:
-    linear-gradient(135deg, transparent 0 48%, oklch(0.91 0.01 188) 48% 52%, transparent 52% 100%),
+    linear-gradient(135deg, transparent 0 48%, var(--ac-group-stripe) 48% 52%, transparent 52% 100%),
     var(--ac-surface);
 }
 
 .ac-toolbar,
 .ac-status {
   align-items: center;
-  background: var(--ac-surface);
-  border: 1px solid var(--ac-line);
-  border-radius: 8px;
-  box-shadow: 0 12px 28px oklch(0.3 0.006 255 / 0.08);
+  -webkit-backdrop-filter: blur(20px) saturate(1.45);
+  backdrop-filter: blur(20px) saturate(1.45);
+  background: var(--ac-glass-bg);
+  border: 1px solid var(--ac-glass-border);
+  border-radius: 9px;
+  box-shadow:
+    0 16px 34px oklch(0.28 0.01 255 / 0.16),
+    inset 0 1px 0 oklch(1 0 0 / 0.8),
+    inset 0 -1px 0 oklch(0.7 0.01 255 / 0.16);
   display: flex;
   position: absolute;
   z-index: 20;
@@ -323,8 +408,12 @@
 
 .ac-toolbar {
   bottom: 18px;
-  gap: 0;
-  left: 18px;
+  gap: 2px;
+  left: 50%;
+  max-width: calc(100% - 36px);
+  overflow: visible;
+  padding: 4px;
+  transform: translateX(-50%);
 }
 
 .ac-toolbar button,
@@ -332,34 +421,77 @@
   align-items: center;
   background: transparent;
   border: 0;
-  border-right: 1px solid var(--ac-line);
   color: var(--ac-ink);
   display: inline-flex;
   font: inherit;
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 720;
-  height: 38px;
+  height: 30px;
   justify-content: center;
-  min-width: 40px;
-  padding: 0 12px;
+  min-width: 30px;
+  padding: 0 8px;
 }
 
 .ac-toolbar button {
+  border-radius: 6px;
   cursor: pointer;
+  position: relative;
 }
 
 .ac-toolbar button:hover:not(:disabled),
 .ac-toolbar button:focus-visible {
-  background: var(--ac-soft);
+  background: var(--ac-glass-hover);
+  outline: 0;
+}
+
+.ac-toolbar button[data-tooltip]::after {
+  background: var(--ac-tooltip-bg);
+  border-radius: 6px;
+  bottom: calc(100% + 9px);
+  color: var(--ac-tooltip-ink);
+  content: attr(data-tooltip);
+  font-size: 11px;
+  font-weight: 680;
+  left: 50%;
+  line-height: 1;
+  opacity: 0;
+  padding: 7px 8px;
+  pointer-events: none;
+  position: absolute;
+  transform: translate(-50%, 3px);
+  transition:
+    opacity 120ms ease,
+    transform 120ms ease;
+  white-space: nowrap;
+}
+
+.ac-toolbar button[data-tooltip]::before {
+  border-left: 5px solid transparent;
+  border-right: 5px solid transparent;
+  border-top: 5px solid var(--ac-tooltip-bg);
+  bottom: calc(100% + 4px);
+  content: "";
+  left: 50%;
+  opacity: 0;
+  pointer-events: none;
+  position: absolute;
+  transform: translate(-50%, 3px);
+  transition:
+    opacity 120ms ease,
+    transform 120ms ease;
+}
+
+.ac-toolbar button[data-tooltip]:hover::after,
+.ac-toolbar button[data-tooltip]:hover::before,
+.ac-toolbar button[data-tooltip]:focus-visible::after,
+.ac-toolbar button[data-tooltip]:focus-visible::before {
+  opacity: 1;
+  transform: translate(-50%, 0);
 }
 
 .ac-toolbar button:disabled {
   color: var(--ac-line-strong);
   cursor: not-allowed;
-}
-
-.ac-toolbar button:last-child {
-  border-right: 0;
 }
 
 .ac-status {
@@ -394,9 +526,10 @@
 
   .ac-toolbar {
     bottom: 12px;
-    left: 12px;
+    left: 50%;
     max-width: calc(100% - 24px);
-    overflow: auto;
+    overflow-x: auto;
+    overflow-y: visible;
   }
 }
 

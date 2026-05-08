@@ -122,12 +122,43 @@ export interface CanvasRect {
   height: number;
 }
 
+export type CanvasPlacementMode =
+  | "freeform"
+  | "avoid-overlap"
+  | "snap-grid"
+  | "near-selection"
+  | "append-row"
+  | "append-column"
+  | "append-grid";
+
+export interface CanvasPlacementPolicy {
+  mode?: CanvasPlacementMode;
+  gap?: number;
+  gridSize?: number;
+  columns?: number;
+  origin?: Pick<CanvasRect, "x" | "y">;
+  bounds?: CanvasRect;
+  referenceNodeIds?: string[];
+  maxAttempts?: number;
+}
+
+export type CanvasLayoutMode = "row" | "column" | "list" | "grid";
+
+export interface CanvasLayoutOptions {
+  mode: CanvasLayoutMode;
+  gap?: number;
+  columns?: number;
+  origin?: Pick<CanvasRect, "x" | "y">;
+}
+
 export type CanvasOperation =
-  | { type: "createNode"; node: CanvasNode }
+  | { type: "createNode"; node: CanvasNode; placement?: CanvasPlacementPolicy }
   | { type: "updateNode"; id: string; patch: Partial<CanvasNode> }
   | { type: "deleteNode"; id: string }
   | { type: "bringToFront"; id: string }
   | { type: "sendToBack"; id: string }
+  | { type: "layoutNodes"; ids: string[]; layout: CanvasLayoutOptions }
+  | { type: "tidyNodes"; ids: string[]; layout?: CanvasLayoutOptions }
   | { type: "select"; ids: string[] }
   | { type: "focus"; id: string }
   | { type: "setViewport"; viewport: CanvasViewport };
@@ -179,6 +210,8 @@ export type AgentCanvasRenderers = Partial<{
   [Type in CanvasNodeType]: AgentCanvasRenderer<Extract<CanvasNode, { type: Type }>>;
 }>;
 
+export type AgentCanvasTheme = "light" | "dark" | "system";
+
 export interface AgentCanvasHandle {
   getSnapshot: () => AgentCanvasSnapshot;
   getAgentContext: () => AgentCanvasContext;
@@ -193,6 +226,7 @@ export interface AgentCanvasProps {
   initialViewport?: CanvasViewport;
   selectedNodeIds?: string[];
   readonly?: boolean;
+  theme?: AgentCanvasTheme;
   className?: string;
   onDocumentChange?: (document: CanvasDocument, results: CanvasOperationResult[]) => void;
   onSelectionChange?: (ids: string[]) => void;

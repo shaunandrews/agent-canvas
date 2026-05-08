@@ -9,7 +9,7 @@ import {
   type PointerEvent as ReactPointerEvent,
   type WheelEvent as ReactWheelEvent
 } from "react";
-import { Crosshair, LocateFixed, MousePointer2, ZoomIn, ZoomOut } from "lucide-react";
+import { AlignHorizontalSpaceBetween, Crosshair, LayoutGrid, LocateFixed, MousePointer2, ZoomIn, ZoomOut } from "lucide-react";
 import { createAgentCanvasContext } from "../core/agent-context";
 import { applyCanvasOperations } from "../core/operations";
 import { fitRectInViewport, getNodesBounds, nodeToRect, rectsIntersect, viewportToCanvasRect, clampScale } from "../core/geometry";
@@ -34,6 +34,7 @@ type DragState =
       startX: number;
       startY: number;
       origin: CanvasViewport;
+      moved: boolean;
     }
   | {
       mode: "node";
@@ -42,6 +43,15 @@ type DragState =
       startY: number;
       nodeIds: string[];
       origins: Record<string, { x: number; y: number }>;
+    }
+  | {
+      mode: "node-select-or-pan";
+      pointerId: number;
+      startX: number;
+      startY: number;
+      nodeId: string;
+      origin: CanvasViewport;
+      moved: boolean;
     };
 
 const DEFAULT_VIEWPORT: CanvasViewport = { x: 72, y: 72, scale: 1 };
@@ -53,6 +63,7 @@ export const AgentCanvas = forwardRef<AgentCanvasHandle, AgentCanvasProps>(funct
     initialViewport = DEFAULT_VIEWPORT,
     selectedNodeIds,
     readonly = false,
+    theme = "system",
     className,
     onDocumentChange,
     onSelectionChange,
@@ -256,7 +267,8 @@ export const AgentCanvas = forwardRef<AgentCanvasHandle, AgentCanvasProps>(funct
       pointerId: event.pointerId,
       startX: event.clientX,
       startY: event.clientY,
-      origin: viewportRef.current
+      origin: viewportRef.current,
+      moved: false
     };
     setIsPanning(true);
     event.currentTarget.setPointerCapture(event.pointerId);
@@ -266,13 +278,26 @@ export const AgentCanvas = forwardRef<AgentCanvasHandle, AgentCanvasProps>(funct
     if (event.button !== 0) return;
     event.stopPropagation();
 
-    const selection = currentSelection.includes(node.id) ? currentSelection : [node.id];
-    setSelection(selection);
+    const alreadySelected = currentSelection.includes(node.id);
+
+    if (!alreadySelected) {
+      dragRef.current = {
+        mode: "node-select-or-pan",
+        pointerId: event.pointerId,
+        startX: event.clientX,
+        startY: event.clientY,
+        nodeId: node.id,
+        origin: viewportRef.current,
+        moved: false
+      };
+      event.currentTarget.setPointerCapture(event.pointerId);
+      return;
+    }
 
     if (readonly || node.locked) return;
 
     const origins = Object.fromEntries(
-      selection
+      currentSelection
         .map((id) => canvasDocument.nodes.find((item) => item.id === id))
         .filter(Boolean)
         .map((item) => [item!.id, { x: item!.x, y: item!.y }])
@@ -283,7 +308,7 @@ export const AgentCanvas = forwardRef<AgentCanvasHandle, AgentCanvasProps>(funct
       pointerId: event.pointerId,
       startX: event.clientX,
       startY: event.clientY,
-      nodeIds: selection,
+      nodeIds: currentSelection,
       origins
     };
     event.currentTarget.setPointerCapture(event.pointerId);
@@ -294,11 +319,30 @@ export const AgentCanvas = forwardRef<AgentCanvasHandle, AgentCanvasProps>(funct
     if (!drag || drag.pointerId !== event.pointerId) return;
 
     if (drag.mode === "pan") {
+      if (Math.hypot(event.clientX - drag.startX, event.clientY - drag.startY) > 4) {
+        drag.moved = true;
+      }
       setViewport({
         ...drag.origin,
         x: drag.origin.x + event.clientX - drag.startX,
         y: drag.origin.y + event.clientY - drag.startY
       });
+      return;
+    }
+
+    if (drag.mode === "node-select-or-pan") {
+      if (Math.hypot(event.clientX - drag.startX, event.clientY - drag.startY) > 4) {
+        drag.moved = true;
+        setIsPanning(true);
+      }
+
+      if (drag.moved) {
+        setViewport({
+          ...drag.origin,
+          x: drag.origin.x + event.clientX - drag.startX,
+          y: drag.origin.y + event.clientY - drag.startY
+        });
+      }
       return;
     }
 
@@ -323,6 +367,12 @@ export const AgentCanvas = forwardRef<AgentCanvasHandle, AgentCanvasProps>(funct
 
     dragRef.current = null;
     setIsPanning(false);
+    if (drag.mode === "pan" && !drag.moved) {
+      setSelection([]);
+    }
+    if (drag.mode === "node-select-or-pan" && !drag.moved) {
+      setSelection([drag.nodeId]);
+    }
     if (drag.mode === "node") {
       const result: CanvasOperationResult = { operation: "updateNode", ok: true };
       onDocumentChange?.(documentRef.current, [result]);
@@ -331,15 +381,30 @@ export const AgentCanvas = forwardRef<AgentCanvasHandle, AgentCanvasProps>(funct
 
   const visibleNodeIds = useMemo(() => getVisibleNodeIds(), [canvasDocument, getVisibleNodeIds, screenSize, viewport]);
   const sortedNodes = useMemo(() => sortNodes(canvasDocument.nodes), [canvasDocument.nodes]);
+  const layoutTargetIds = useMemo(
+    () => (currentSelection.length > 1 ? currentSelection : canvasDocument.nodes.filter((node) => node.type !== "group").map((node) => node.id)),
+    [canvasDocument.nodes, currentSelection]
+  );
   const context: AgentCanvasContext = useMemo(
     () => createAgentCanvasContext(canvasDocument, viewport, currentSelection, screenSize.width, screenSize.height),
     [canvasDocument, currentSelection, screenSize.height, screenSize.width, viewport]
   );
 
+  function tidyRow() {
+    if (layoutTargetIds.length < 2) return;
+    applyOperations([{ type: "layoutNodes", ids: layoutTargetIds, layout: { mode: "row", gap: 32 } }]);
+  }
+
+  function tidyGrid() {
+    if (layoutTargetIds.length < 2) return;
+    applyOperations([{ type: "tidyNodes", ids: layoutTargetIds, layout: { mode: "grid", gap: 32, columns: 3 } }]);
+  }
+
   return (
     <section
       ref={shellRef}
-      className={["ac-shell", isPanning ? "is-panning" : "", readonly ? "is-readonly" : "", className || ""].join(" ")}
+      className={["ac-shell", theme !== "system" ? `ac-theme-${theme}` : "", isPanning ? "is-panning" : "", readonly ? "is-readonly" : "", className || ""].join(" ")}
+      data-agent-canvas-theme={theme}
       aria-label={`${canvasDocument.title} canvas`}
       onPointerDown={handleBackgroundPointerDown}
       onPointerMove={handlePointerMove}
@@ -386,27 +451,33 @@ export const AgentCanvas = forwardRef<AgentCanvasHandle, AgentCanvasProps>(funct
       </div>
 
       <div className="ac-toolbar" role="toolbar" aria-label="Canvas controls">
-        <button type="button" onClick={() => setSelection([])} title="Selection tool" aria-label="Selection tool">
-          <MousePointer2 size={16} />
+        <button type="button" onClick={() => setSelection([])} data-tooltip="Selection tool" aria-label="Selection tool">
+          <MousePointer2 size={14} />
         </button>
-        <button type="button" onClick={() => zoomBy(1 / 1.18)} title="Zoom out" aria-label="Zoom out">
-          <ZoomOut size={16} />
+        <button type="button" onClick={() => zoomBy(1 / 1.18)} data-tooltip="Zoom out" aria-label="Zoom out">
+          <ZoomOut size={14} />
         </button>
-        <span>{Math.round(viewport.scale * 100)}%</span>
-        <button type="button" onClick={() => zoomBy(1.18)} title="Zoom in" aria-label="Zoom in">
-          <ZoomIn size={16} />
+        <span aria-label="Zoom level">{Math.round(viewport.scale * 100)}%</span>
+        <button type="button" onClick={() => zoomBy(1.18)} data-tooltip="Zoom in" aria-label="Zoom in">
+          <ZoomIn size={14} />
         </button>
-        <button type="button" onClick={fitView} title="Fit canvas" aria-label="Fit canvas">
-          <LocateFixed size={16} />
+        <button type="button" onClick={fitView} data-tooltip="Fit canvas" aria-label="Fit canvas">
+          <LocateFixed size={14} />
+        </button>
+        <button type="button" onClick={tidyRow} data-tooltip="Tidy row" aria-label="Tidy row" disabled={layoutTargetIds.length < 2}>
+          <AlignHorizontalSpaceBetween size={14} />
+        </button>
+        <button type="button" onClick={tidyGrid} data-tooltip="Tidy grid" aria-label="Tidy grid" disabled={layoutTargetIds.length < 2}>
+          <LayoutGrid size={14} />
         </button>
         <button
           type="button"
           onClick={() => currentSelection[0] && focusNode(currentSelection[0])}
-          title="Focus selection"
+          data-tooltip="Focus selection"
           aria-label="Focus selection"
           disabled={!currentSelection.length}
         >
-          <Crosshair size={16} />
+          <Crosshair size={14} />
         </button>
       </div>
 

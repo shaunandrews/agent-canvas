@@ -3,6 +3,7 @@ import "./styles.css";
 export { AgentCanvas } from "./react/AgentCanvas";
 export { createCanvasDocument, makeCanvasId, normalizeNodes, sortNodes } from "./core/document";
 export { applyCanvasOperations } from "./core/operations";
+export { createNodeWithPlacement, layoutCanvasNodes, placeCanvasNode, tidyCanvasNodes } from "./core/layout";
 export { createAgentCanvasContext, extractNodeText, summarizeNode } from "./core/agent-context";
 export { fitRectInViewport, getNodesBounds, nodeToRect, rectsIntersect, viewportToCanvasRect } from "./core/geometry";
 export type {
@@ -14,13 +15,18 @@ export type {
   AgentCanvasRendererProps,
   AgentCanvasRenderers,
   AgentCanvasSnapshot,
+  AgentCanvasTheme,
   CanvasDocument,
   CanvasEdge,
+  CanvasLayoutMode,
+  CanvasLayoutOptions,
   CanvasNode,
   CanvasNodeBase,
   CanvasNodeType,
   CanvasOperation,
   CanvasOperationResult,
+  CanvasPlacementMode,
+  CanvasPlacementPolicy,
   CanvasRect,
   CanvasViewport,
   DocumentCanvasNode,

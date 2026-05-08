@@ -11,6 +11,11 @@
   "main": "./dist/index.js",
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
+  "bin": {
+    "agent-canvas": "./scripts/agent-canvas.mjs",
+    "agent-canvas-control": "./scripts/control-server.mjs",
+    "agent-canvas-mcp": "./scripts/mcp-server.mjs"
+  },
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
@@ -20,11 +25,19 @@
   },
   "files": [
     "dist",
+    "scripts/agent-canvas.mjs",
+    "scripts/control-server.mjs",
+    "scripts/mcp-server.mjs",
+    "docs",
     "README.md",
     "AGENTS.md"
   ],
   "scripts": {
     "dev": "vite --host 127.0.0.1",
+    "control": "node scripts/control-server.mjs",
+    "agent": "node scripts/agent-canvas.mjs",
+    "mcp": "node scripts/mcp-server.mjs",
+    "mcp:config": "node scripts/agent-canvas.mjs mcp-config --local --codex",
     "build": "tsc -p tsconfig.build.json && vite build",
     "prepare": "npm run build",
     "typecheck": "tsc --noEmit",

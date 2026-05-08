@@ -33,7 +33,7 @@ const document = createCanvasDocument({
 });
 
 export function App() {
-  return <AgentCanvas document={document} />;
+  return <AgentCanvas document={document} theme="system" />;
 }
 ```
 
@@ -47,6 +47,61 @@ export function App() {
 - `fitView()` and `focusNode(id)` control the camera.
 
 The pure helpers in `src/lib/core` can also run on a server before broadcasting updated snapshots to clients.
+
+`AgentCanvas` supports `theme="system"`, `theme="light"`, and `theme="dark"`. The default is `system`, which follows `prefers-color-scheme`.
+
+### Local Control API
+
+For the demo and local agent workflows, start the canvas and the control server in separate terminals:
+
+```bash
+npm run dev
+npm run control
+```
+
+The control server listens on `127.0.0.1:8787`. Agents can post the same `CanvasOperation[]` records used by React:
+
+```bash
+npm run agent -- create-text --id agent-note-1 --title "Agent note" --text "Added from the CLI" --avoid-overlap
+```
+
+When installed as a package, the same commands are available as `agent-canvas-control` and `agent-canvas`.
+
+Or send raw operations:
+
+```bash
+npm run agent -- send '[{"type":"updateNode","id":"agent-note-1","patch":{"content":{"tone":"note","text":"Updated in realtime"}}}]'
+```
+
+The demo listens to `GET /events` with Server-Sent Events and applies `POST /operations` payloads immediately.
+
+### MCP
+
+For AI clients that support MCP, Agent Canvas also ships a stdio MCP server. Start the browser control bridge:
+
+```bash
+npm run control
+```
+
+Then add this MCP server to `~/.codex/config.toml`:
+
+```toml
+[mcp_servers.agent-canvas]
+command = "node"
+args = ["/Users/shaun/Developer/Projects/agent-canvas/scripts/mcp-server.mjs"]
+env = { AGENT_CANVAS_CONTROL_URL = "http://127.0.0.1:8787" }
+```
+
+Restart Codex after editing the config. For an installed package, use:
+
+```toml
+[mcp_servers.agent-canvas]
+command = "npx"
+args = ["-y", "-p", "@agent-canvas/react", "agent-canvas-mcp"]
+env = { AGENT_CANVAS_CONTROL_URL = "http://127.0.0.1:8787" }
+```
+
+The MCP server exposes tools for reading context, creating nodes, updating nodes, streaming document content, focusing nodes, and applying layouts. See [docs/MCP.md](./docs/MCP.md) for setup details and the full tool list.
 
 ## Integrating Into Another App
 

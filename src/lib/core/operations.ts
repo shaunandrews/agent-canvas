@@ -1,5 +1,6 @@
 import type { CanvasDocument, CanvasNode, CanvasOperation, CanvasOperationResult, CanvasViewport } from "../types";
 import { sortNodes } from "./document";
+import { layoutCanvasNodes, placeCanvasNode, tidyCanvasNodes } from "./layout";
 
 export interface ApplyCanvasOperationsState {
   document: CanvasDocument;
@@ -24,11 +25,12 @@ export function applyCanvasOperations(
     try {
       if (operation.type === "createNode") {
         ensureUniqueNodeId(document, operation.node.id);
+        const node = operation.placement ? placeCanvasNode(document, operation.node, operation.placement, selectedNodeIds) : operation.node;
         document = {
           ...document,
-          nodes: sortNodes([...document.nodes, { ...operation.node, zIndex: operation.node.zIndex ?? nextZIndex(document) }])
+          nodes: sortNodes([...document.nodes, { ...node, zIndex: node.zIndex ?? nextZIndex(document) }])
         };
-        results.push({ operation: operation.type, ok: true, id: operation.node.id });
+        results.push({ operation: operation.type, ok: true, id: node.id });
         continue;
       }
 
@@ -75,6 +77,22 @@ export function applyCanvasOperations(
           nodes: sortNodes(document.nodes.map((node) => (node.id === operation.id ? { ...node, zIndex } : node)))
         };
         results.push({ operation: operation.type, ok: true, id: operation.id });
+        continue;
+      }
+
+      if (operation.type === "layoutNodes") {
+        operation.ids.forEach((id) => ensureNodeExists(document, id));
+        const layoutOperations = layoutCanvasNodes(document, operation.ids, operation.layout);
+        document = applyUpdateOperationsToDocument(document, layoutOperations);
+        results.push({ operation: operation.type, ok: true });
+        continue;
+      }
+
+      if (operation.type === "tidyNodes") {
+        operation.ids.forEach((id) => ensureNodeExists(document, id));
+        const layoutOperations = tidyCanvasNodes(document, operation.ids, operation.layout);
+        document = applyUpdateOperationsToDocument(document, layoutOperations);
+        results.push({ operation: operation.type, ok: true });
         continue;
       }
 
@@ -125,6 +143,23 @@ function ensureUniqueNodeId(document: CanvasDocument, id: string): void {
 
 function ensureNodeExists(document: CanvasDocument, id: string): void {
   if (!document.nodes.some((node) => node.id === id)) throw new Error(`Node not found: ${id}`);
+}
+
+function applyUpdateOperationsToDocument(document: CanvasDocument, operations: CanvasOperation[]): CanvasDocument {
+  const patches = new Map<string, { x?: number; y?: number }>();
+  for (const operation of operations) {
+    if (operation.type === "updateNode") {
+      const patch: { x?: number; y?: number } = {};
+      if (typeof operation.patch.x === "number") patch.x = operation.patch.x;
+      if (typeof operation.patch.y === "number") patch.y = operation.patch.y;
+      patches.set(operation.id, { ...(patches.get(operation.id) || {}), ...patch });
+    }
+  }
+
+  return {
+    ...document,
+    nodes: sortNodes(document.nodes.map((node) => (patches.has(node.id) ? ({ ...node, ...patches.get(node.id), id: node.id } as typeof node) : node)))
+  };
 }
 
 function nextZIndex(document: CanvasDocument): number {
