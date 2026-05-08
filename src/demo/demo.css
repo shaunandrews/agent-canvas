@@ -1,0 +1,190 @@
+@import "../lib/styles.css";
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background: var(--ac-canvas);
+  color: var(--ac-ink);
+  font-family: var(--ac-font);
+}
+
+button {
+  font-family: inherit;
+}
+
+.demo-shell {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 340px;
+  height: 100%;
+  min-height: 100%;
+}
+
+.demo-panel {
+  background: var(--ac-surface);
+  border-left: 1px solid var(--ac-line);
+  display: grid;
+  grid-template-rows: auto auto auto minmax(0, 1fr);
+  min-height: 0;
+  overflow: hidden;
+}
+
+.demo-panel header,
+.demo-panel section {
+  border-bottom: 1px solid var(--ac-line);
+  padding: 18px;
+}
+
+.demo-panel header {
+  display: grid;
+  gap: 6px;
+}
+
+.demo-panel header span {
+  color: var(--ac-muted);
+  font-size: 12px;
+  font-weight: 760;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.demo-panel header strong {
+  font-size: 20px;
+  line-height: 1.1;
+}
+
+.demo-panel h2 {
+  font-size: 12px;
+  letter-spacing: 0;
+  line-height: 1;
+  margin: 0 0 14px;
+  text-transform: uppercase;
+}
+
+.demo-panel dl {
+  display: grid;
+  gap: 8px 12px;
+  grid-template-columns: 72px minmax(0, 1fr);
+  margin: 0;
+}
+
+.demo-panel dt,
+.demo-panel dd,
+.demo-muted {
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+.demo-panel dt {
+  color: var(--ac-muted);
+  font-weight: 700;
+}
+
+.demo-panel dd {
+  margin: 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.demo-muted {
+  color: var(--ac-muted);
+  margin: 0;
+}
+
+.demo-actions {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: 1fr 1fr;
+}
+
+.demo-actions button {
+  align-items: center;
+  background: var(--ac-surface);
+  border: 1px solid var(--ac-line);
+  border-radius: 7px;
+  color: var(--ac-ink);
+  cursor: pointer;
+  display: inline-flex;
+  font-size: 12px;
+  font-weight: 700;
+  gap: 7px;
+  height: 36px;
+  justify-content: flex-start;
+  min-width: 0;
+  padding: 0 10px;
+}
+
+.demo-actions button:hover:not(:disabled),
+.demo-actions button:focus-visible {
+  background: var(--ac-soft);
+  border-color: var(--ac-line-strong);
+}
+
+.demo-actions button:disabled {
+  color: var(--ac-line-strong);
+  cursor: not-allowed;
+}
+
+.demo-context {
+  min-height: 0;
+  overflow: hidden;
+}
+
+.demo-context pre {
+  background: var(--ac-soft);
+  border: 1px solid var(--ac-line);
+  border-radius: 7px;
+  color: var(--ac-ink);
+  font-family: "SFMono-Regular", Consolas, monospace;
+  font-size: 11px;
+  height: calc(100% - 28px);
+  line-height: 1.42;
+  margin: 0;
+  overflow: auto;
+  padding: 12px;
+  white-space: pre-wrap;
+}
+
+@media (max-width: 980px) {
+  .demo-shell {
+    grid-template-columns: 1fr;
+    grid-template-rows: minmax(620px, 1fr) auto;
+  }
+
+  .demo-panel {
+    border-left: 0;
+    border-top: 1px solid var(--ac-line);
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-rows: auto;
+    max-height: 360px;
+  }
+
+  .demo-panel header,
+  .demo-panel section {
+    border-bottom: 0;
+    border-right: 1px solid var(--ac-line);
+    min-width: 0;
+  }
+
+  .demo-context pre {
+    max-height: 220px;
+  }
+}
+
+@media (max-width: 680px) {
+  .demo-panel {
+    display: block;
+    max-height: none;
+    overflow: auto;
+  }
+
+  .demo-panel header,
+  .demo-panel section {
+    border-bottom: 1px solid var(--ac-line);
+    border-right: 0;
+  }
+}
