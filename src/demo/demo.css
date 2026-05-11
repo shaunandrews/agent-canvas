@@ -27,8 +27,10 @@ button {
   border: 1px solid oklch(0.74 0.035 188);
   border-radius: 999px;
   color: var(--ac-accent);
-  margin-left: auto;
-  padding: 4px 7px;
+  font-size: calc(11px / var(--ac-viewport-scale, 1));
+  font-weight: 720;
+  line-height: 1;
+  padding: calc(4px / var(--ac-viewport-scale, 1)) calc(7px / var(--ac-viewport-scale, 1));
   white-space: nowrap;
 }
 

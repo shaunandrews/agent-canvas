@@ -3,9 +3,11 @@ import {
   useCallback,
   useEffect,
   useImperativeHandle,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
+  type CSSProperties,
   type PointerEvent as ReactPointerEvent,
   type WheelEvent as ReactWheelEvent
 } from "react";
@@ -133,6 +135,34 @@ export const AgentCanvas = forwardRef<AgentCanvasHandle, AgentCanvasProps>(funct
   useEffect(() => {
     screenSizeRef.current = screenSize;
   }, [screenSize]);
+
+  useLayoutEffect(() => {
+    const shell = shellRef.current;
+    if (!shell) return;
+
+    const syncSurfaceMetrics = () => {
+      shell.querySelectorAll<HTMLElement>("[data-agent-node-id]").forEach((nodeElement) => {
+        const surface = nodeElement.querySelector<HTMLElement>(".ac-node-surface");
+        if (!surface) {
+          nodeElement.style.setProperty("--ac-node-surface-top", "0px");
+          nodeElement.style.setProperty("--ac-node-surface-right", "0px");
+          nodeElement.style.setProperty("--ac-node-surface-bottom", "0px");
+          nodeElement.style.setProperty("--ac-node-surface-left", "0px");
+          return;
+        }
+
+        nodeElement.style.setProperty("--ac-node-surface-top", `${surface.offsetTop}px`);
+        nodeElement.style.setProperty("--ac-node-surface-right", `${nodeElement.clientWidth - surface.offsetLeft - surface.offsetWidth}px`);
+        nodeElement.style.setProperty("--ac-node-surface-bottom", `${nodeElement.clientHeight - surface.offsetTop - surface.offsetHeight}px`);
+        nodeElement.style.setProperty("--ac-node-surface-left", `${surface.offsetLeft}px`);
+      });
+    };
+
+    syncSurfaceMetrics();
+    const observer = new ResizeObserver(syncSurfaceMetrics);
+    shell.querySelectorAll("[data-agent-node-id], .ac-node-surface").forEach((element) => observer.observe(element));
+    return () => observer.disconnect();
+  }, [canvasDocument, viewport.scale, mergedRenderers]);
 
   useEffect(() => {
     const shell = shellRef.current;
@@ -284,7 +314,9 @@ export const AgentCanvas = forwardRef<AgentCanvasHandle, AgentCanvasProps>(funct
 
   function handleBackgroundPointerDown(event: ReactPointerEvent<HTMLDivElement>) {
     const target = event.target as HTMLElement;
-    if (event.button !== 0 || target.closest("[data-agent-node-id]") || target.closest("button")) return;
+    const nodeElement = target.closest<HTMLElement>("[data-agent-node-id]");
+    const isSectionNonTitle = nodeElement?.dataset.agentNodeType === "section" && !target.closest("[data-agent-section-title]");
+    if (event.button !== 0 || target.closest("button") || (nodeElement && !isSectionNonTitle)) return;
 
     dragRef.current = {
       mode: "pan",
@@ -300,6 +332,8 @@ export const AgentCanvas = forwardRef<AgentCanvasHandle, AgentCanvasProps>(funct
 
   function handleNodePointerDown(event: ReactPointerEvent<HTMLElement>, node: CanvasNode) {
     if (event.button !== 0) return;
+    const target = event.target as HTMLElement;
+    if (node.type === "section" && !target.closest("[data-agent-section-title]")) return;
     event.stopPropagation();
 
     const alreadySelected = currentSelection.includes(node.id);
@@ -516,15 +550,16 @@ export const AgentCanvas = forwardRef<AgentCanvasHandle, AgentCanvasProps>(funct
       onWheel={handleWheel}
       tabIndex={0}
     >
-      <div className="ac-grid" aria-hidden="true" />
       <div
         className="ac-stage"
         data-agent-canvas-stage
+        data-agent-header-density={viewport.scale < 0.72 ? "summary" : "full"}
         style={{
           width: canvasDocument.width,
           height: canvasDocument.height,
+          "--ac-viewport-scale": viewport.scale,
           transform: `translate3d(${viewport.x}px, ${viewport.y}px, 0) scale(${viewport.scale})`
-        }}
+        } as CSSProperties}
       >
         {sortedNodes.map((node) => {
           const Renderer = mergedRenderers[node.type];
@@ -537,6 +572,7 @@ export const AgentCanvas = forwardRef<AgentCanvasHandle, AgentCanvasProps>(funct
               aria-selected={selected}
               className={`ac-node ac-node--${node.type}${selected ? " is-selected" : ""}${node.locked ? " is-locked" : ""}`}
               data-agent-node-id={node.id}
+              data-agent-node-type={node.type}
               key={node.id}
               onPointerDown={(event) => handleNodePointerDown(event, node)}
               role="button"
@@ -550,8 +586,9 @@ export const AgentCanvas = forwardRef<AgentCanvasHandle, AgentCanvasProps>(funct
               tabIndex={0}
             >
               {Renderer ? <Renderer node={node as never} selected={selected} /> : null}
-              {showResizeHandles
-                ? resizeOptions.handles.map((handle) => (
+              {showResizeHandles ? (
+                <div className="ac-resize-layer">
+                  {resizeOptions.handles.map((handle) => (
                     <button
                       aria-label={`Resize ${node.title || node.id} from ${getResizeHandleLabel(handle)}`}
                       className={`ac-resize-handle ac-resize-handle--${handle}`}
@@ -560,8 +597,9 @@ export const AgentCanvas = forwardRef<AgentCanvasHandle, AgentCanvasProps>(funct
                       onPointerDown={(event) => handleResizePointerDown(event, node, handle)}
                       type="button"
                     />
-                  ))
-                : null}
+                  ))}
+                </div>
+              ) : null}
             </article>
           );
         })}

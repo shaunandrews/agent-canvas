@@ -11,7 +11,6 @@
   --ac-accent-soft: oklch(0.93 0.025 188);
   --ac-danger: oklch(0.48 0.08 28);
   --ac-font: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
-  --ac-grid-line: oklch(0.9 0.004 255);
   --ac-glass-bg:
     linear-gradient(180deg, rgba(255, 255, 255, 0.44), rgba(245, 248, 252, 0.22)),
     rgba(255, 255, 255, 0.18);
@@ -19,7 +18,8 @@
   --ac-glass-hover: rgba(255, 255, 255, 0.46);
   --ac-tooltip-bg: oklch(0.22 0.007 255 / 0.94);
   --ac-tooltip-ink: white;
-  --ac-section-bg: oklch(0.94 0.018 188 / 0.34);
+  --ac-section-bg: oklch(0.94 0.018 188 / 0.08);
+  --ac-section-bg-selected: oklch(0.94 0.018 188 / 0.18);
   --ac-snap-guide: oklch(0.55 0.08 188 / 0.78);
   --ac-resize-bg: oklch(0.995 0.003 255);
 }
@@ -37,7 +37,6 @@
     --ac-accent: oklch(0.74 0.055 188);
     --ac-accent-soft: oklch(0.34 0.04 188);
     --ac-danger: oklch(0.72 0.11 28);
-    --ac-grid-line: oklch(0.3 0.006 255);
     --ac-glass-bg:
       linear-gradient(180deg, rgba(42, 48, 58, 0.48), rgba(18, 22, 30, 0.28)),
       rgba(13, 17, 24, 0.22);
@@ -45,7 +44,8 @@
     --ac-glass-hover: rgba(255, 255, 255, 0.13);
     --ac-tooltip-bg: oklch(0.92 0.004 255 / 0.94);
     --ac-tooltip-ink: oklch(0.18 0.006 255);
-    --ac-section-bg: oklch(0.34 0.04 188 / 0.3);
+    --ac-section-bg: oklch(0.34 0.04 188 / 0.1);
+    --ac-section-bg-selected: oklch(0.34 0.04 188 / 0.2);
     --ac-snap-guide: oklch(0.76 0.08 188 / 0.78);
     --ac-resize-bg: oklch(0.24 0.007 255);
   }
@@ -63,7 +63,6 @@
   --ac-accent: oklch(0.38 0.04 188);
   --ac-accent-soft: oklch(0.93 0.025 188);
   --ac-danger: oklch(0.48 0.08 28);
-  --ac-grid-line: oklch(0.9 0.004 255);
   --ac-glass-bg:
     linear-gradient(180deg, rgba(255, 255, 255, 0.44), rgba(245, 248, 252, 0.22)),
     rgba(255, 255, 255, 0.18);
@@ -71,7 +70,8 @@
   --ac-glass-hover: rgba(255, 255, 255, 0.46);
   --ac-tooltip-bg: oklch(0.22 0.007 255 / 0.94);
   --ac-tooltip-ink: white;
-  --ac-section-bg: oklch(0.94 0.018 188 / 0.34);
+  --ac-section-bg: oklch(0.94 0.018 188 / 0.08);
+  --ac-section-bg-selected: oklch(0.94 0.018 188 / 0.18);
   --ac-snap-guide: oklch(0.55 0.08 188 / 0.78);
   --ac-resize-bg: oklch(0.995 0.003 255);
 }
@@ -88,7 +88,6 @@
   --ac-accent: oklch(0.74 0.055 188);
   --ac-accent-soft: oklch(0.34 0.04 188);
   --ac-danger: oklch(0.72 0.11 28);
-  --ac-grid-line: oklch(0.3 0.006 255);
   --ac-glass-bg:
     linear-gradient(180deg, rgba(42, 48, 58, 0.48), rgba(18, 22, 30, 0.28)),
     rgba(13, 17, 24, 0.22);
@@ -96,7 +95,8 @@
   --ac-glass-hover: rgba(255, 255, 255, 0.13);
   --ac-tooltip-bg: oklch(0.92 0.004 255 / 0.94);
   --ac-tooltip-ink: oklch(0.18 0.006 255);
-  --ac-section-bg: oklch(0.34 0.04 188 / 0.3);
+  --ac-section-bg: oklch(0.34 0.04 188 / 0.1);
+  --ac-section-bg-selected: oklch(0.34 0.04 188 / 0.2);
   --ac-snap-guide: oklch(0.76 0.08 188 / 0.78);
   --ac-resize-bg: oklch(0.24 0.007 255);
 }
@@ -129,17 +129,6 @@
   cursor: grabbing;
 }
 
-.ac-grid {
-  background-image:
-    linear-gradient(to right, var(--ac-grid-line) 1px, transparent 1px),
-    linear-gradient(to bottom, var(--ac-grid-line) 1px, transparent 1px);
-  background-size: 48px 48px;
-  inset: 0;
-  opacity: 0.42;
-  pointer-events: none;
-  position: absolute;
-}
-
 .ac-stage {
   position: absolute;
   transform-origin: 0 0;
@@ -147,28 +136,39 @@
 }
 
 .ac-node {
-  background: var(--ac-surface);
-  border: 1px solid var(--ac-line);
-  border-radius: 8px;
-  box-shadow: 0 10px 28px oklch(0.3 0.006 255 / 0.07);
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
   cursor: default;
-  overflow: hidden;
+  overflow: visible;
   position: absolute;
   transform: translateZ(0);
 }
 
 .ac-node--section {
-  background: var(--ac-section-bg);
-  border-color: var(--ac-accent);
-  box-shadow: none;
+  background: transparent;
 }
 
 .ac-node.is-selected {
-  border-color: var(--ac-accent);
+  box-shadow: none;
   cursor: grab;
-  box-shadow:
-    0 0 0 3px var(--ac-accent-soft),
-    0 12px 32px oklch(0.3 0.006 255 / 0.09);
+  outline: 0;
+}
+
+.ac-node.is-selected .ac-node-surface::after,
+.ac-node:focus-visible .ac-node-surface::after {
+  border: calc(3px / var(--ac-viewport-scale, 1)) solid var(--ac-accent);
+  border-radius: calc(9px / var(--ac-viewport-scale, 1));
+  content: "";
+  inset: calc(-1px / var(--ac-viewport-scale, 1));
+  pointer-events: none;
+  position: absolute;
+  z-index: 2;
+}
+
+.ac-node--section.is-selected .ac-node-surface {
+  background: var(--ac-section-bg-selected);
 }
 
 .ac-node.is-selected:active {
@@ -180,53 +180,62 @@
 }
 
 .ac-node:focus-visible {
-  outline: 2px solid var(--ac-accent);
-  outline-offset: 3px;
+  outline: 0;
+}
+
+.ac-resize-layer {
+  bottom: var(--ac-node-surface-bottom, 0);
+  left: var(--ac-node-surface-left, 0);
+  pointer-events: none;
+  position: absolute;
+  right: var(--ac-node-surface-right, 0);
+  top: var(--ac-node-surface-top, 0);
+  z-index: 4;
 }
 
 .ac-resize-handle {
   background: var(--ac-resize-bg);
-  border: 1px solid var(--ac-accent);
+  border: calc(1px / var(--ac-viewport-scale, 1)) solid var(--ac-accent);
   border-radius: 999px;
   box-shadow:
-    0 0 0 2px var(--ac-accent-soft),
-    0 4px 12px oklch(0.3 0.006 255 / 0.16);
-  height: 10px;
+    0 0 0 calc(2px / var(--ac-viewport-scale, 1)) var(--ac-accent-soft),
+    0 calc(4px / var(--ac-viewport-scale, 1)) calc(12px / var(--ac-viewport-scale, 1)) oklch(0.3 0.006 255 / 0.16);
+  height: calc(10px / var(--ac-viewport-scale, 1));
   margin: 0;
   padding: 0;
+  pointer-events: auto;
   position: absolute;
-  width: 10px;
-  z-index: 3;
+  width: calc(10px / var(--ac-viewport-scale, 1));
 }
 
 .ac-resize-handle::after {
   content: "";
-  inset: -8px;
+  inset: calc(-8px / var(--ac-viewport-scale, 1));
   position: absolute;
 }
 
 .ac-resize-handle--nw {
   cursor: nwse-resize;
-  left: 5px;
-  top: 5px;
+  left: calc(-5px / var(--ac-viewport-scale, 1));
+  top: calc(-5px / var(--ac-viewport-scale, 1));
 }
 
 .ac-resize-handle--ne {
   cursor: nesw-resize;
-  right: 5px;
-  top: 5px;
+  right: calc(-5px / var(--ac-viewport-scale, 1));
+  top: calc(-5px / var(--ac-viewport-scale, 1));
 }
 
 .ac-resize-handle--sw {
-  bottom: 5px;
+  bottom: calc(-5px / var(--ac-viewport-scale, 1));
   cursor: nesw-resize;
-  left: 5px;
+  left: calc(-5px / var(--ac-viewport-scale, 1));
 }
 
 .ac-resize-handle--se {
-  bottom: 5px;
+  bottom: calc(-5px / var(--ac-viewport-scale, 1));
   cursor: nwse-resize;
-  right: 5px;
+  right: calc(-5px / var(--ac-viewport-scale, 1));
 }
 
 .ac-resize-handle:hover,
@@ -252,40 +261,83 @@
 }
 
 .ac-node-content {
+  border-radius: inherit;
   display: flex;
   flex-direction: column;
   height: 100%;
+  overflow: visible;
   min-height: 0;
   width: 100%;
 }
 
-.ac-node-header {
-  align-items: baseline;
-  border-bottom: 1px solid var(--ac-line);
+.ac-node-surface {
+  background: var(--ac-surface);
+  border: 1px solid var(--ac-line);
+  border-radius: 8px;
   display: flex;
-  flex: 0 0 auto;
-  gap: 10px;
-  min-height: 42px;
-  padding: 12px 16px;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+  position: relative;
+  width: 100%;
 }
 
-.ac-node-header span {
-  color: var(--ac-muted);
+.ac-node--section .ac-node-surface {
+  background: var(--ac-section-bg);
+  border-color: var(--ac-line-strong);
+}
+
+.ac-node-header {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  display: flex;
   flex: 0 0 auto;
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0;
-  text-transform: uppercase;
+  gap: calc(10px / var(--ac-viewport-scale, 1));
+  justify-content: space-between;
+  min-height: calc(18px / var(--ac-viewport-scale, 1));
+  padding: 0 0 calc(8px / var(--ac-viewport-scale, 1));
 }
 
 .ac-node-header strong {
   color: var(--ac-ink);
-  font-size: 13px;
+  font-size: calc(13px / var(--ac-viewport-scale, 1));
   line-height: 1.2;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.ac-node-header-actions {
+  align-items: center;
+  display: inline-flex;
+  flex: 0 0 auto;
+  gap: calc(6px / var(--ac-viewport-scale, 1));
+  margin-left: auto;
+}
+
+.ac-node-header-icon {
+  align-items: center;
+  color: var(--ac-muted);
+  display: inline-flex;
+  height: calc(18px / var(--ac-viewport-scale, 1));
+  justify-content: center;
+  width: calc(18px / var(--ac-viewport-scale, 1));
+}
+
+.ac-node-header-icon[data-agent-node-description-icon] {
+  color: var(--ac-accent);
+}
+
+.ac-node-header-icon svg {
+  height: calc(14px / var(--ac-viewport-scale, 1));
+  width: calc(14px / var(--ac-viewport-scale, 1));
+}
+
+[data-agent-header-density="summary"] .ac-node-header-icon {
+  display: none;
 }
 
 .ac-document-body {
@@ -301,8 +353,7 @@
 .ac-document-body ul,
 .ac-text-node p,
 .ac-file-node p,
-.ac-section-node p,
-.ac-website-node p {
+.ac-section-node p {
   margin: 0;
 }
 
@@ -352,7 +403,7 @@
 }
 
 .ac-text-node {
-  justify-content: space-between;
+  justify-content: flex-start;
 }
 
 .ac-text-node p {
@@ -370,8 +421,12 @@
 }
 
 .ac-media-node {
-  background: var(--ac-soft);
+  background: transparent;
   margin: 0;
+}
+
+.ac-media-surface {
+  background: var(--ac-soft);
 }
 
 .ac-media-node img,
@@ -385,24 +440,6 @@
   width: 100%;
 }
 
-.ac-media-node figcaption {
-  background: var(--ac-surface);
-  border-top: 1px solid var(--ac-line);
-  display: grid;
-  gap: 2px;
-  padding: 10px 14px;
-}
-
-.ac-media-node figcaption strong,
-.ac-media-node figcaption span {
-  font-size: 12px;
-  line-height: 1.25;
-}
-
-.ac-media-node figcaption span {
-  color: var(--ac-muted);
-}
-
 .ac-website-node iframe {
   background: var(--ac-surface);
   border: 0;
@@ -411,16 +448,7 @@
   width: 100%;
 }
 
-.ac-website-node p {
-  border-top: 1px solid var(--ac-line);
-  color: var(--ac-muted);
-  font-size: 12px;
-  line-height: 1.35;
-  padding: 10px 14px;
-}
-
-.ac-file-node,
-.ac-section-node {
+.ac-file-node .ac-node-surface {
   gap: 12px;
   padding-bottom: 18px;
 }
@@ -441,27 +469,25 @@
   width: 58px;
 }
 
-.ac-file-node > strong,
-.ac-file-node > span,
-.ac-file-node > p,
-.ac-section-node > p {
+.ac-file-node .ac-node-surface > strong,
+.ac-file-node .ac-node-surface > span,
+.ac-file-node .ac-node-surface > p {
   margin-left: 18px;
   margin-right: 18px;
 }
 
-.ac-file-node > strong {
+.ac-file-node .ac-node-surface > strong {
   font-size: 17px;
 }
 
-.ac-file-node > span {
+.ac-file-node .ac-node-surface > span {
   color: var(--ac-muted);
   font-size: 12px;
   font-weight: 700;
   text-transform: uppercase;
 }
 
-.ac-file-node > p,
-.ac-section-node > p {
+.ac-file-node .ac-node-surface > p {
   color: var(--ac-muted);
   font-size: 14px;
   line-height: 1.42;

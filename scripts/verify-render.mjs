@@ -25,8 +25,58 @@ await page.locator("[data-agent-node-id='project-summary']").waitFor();
 const summarySelectedBeforeCanvasClick = await page
   .locator("[data-agent-node-id='project-summary']")
   .evaluate((node) => node.classList.contains("is-selected"));
+const gridBackgroundRemoved = (await page.locator(".ac-grid").count()) === 0;
+const nodeShadowRemoved = await page.locator("[data-agent-node-id='project-summary']").evaluate((node) => getComputedStyle(node).boxShadow === "none");
+const selectedBorderIsSimple = await page
+  .locator("[data-agent-node-id='project-summary']")
+  .evaluate((node) => {
+    const styles = getComputedStyle(node);
+    const surface = node.querySelector(".ac-node-surface");
+    if (!surface) return false;
+    const surfaceStyles = getComputedStyle(surface);
+    const selectionRing = getComputedStyle(surface, "::after");
+    return (
+      styles.boxShadow === "none" &&
+      styles.outlineStyle === "none" &&
+      styles.borderTopWidth === "0px" &&
+      surfaceStyles.borderTopWidth === "1px" &&
+      selectionRing.borderTopWidth === "3px" &&
+      selectionRing.borderTopStyle === "solid"
+    );
+  });
+const headerHasNoPaddingOrBg = await page.locator("[data-agent-node-id='project-summary'] .ac-node-header").evaluate((node) => {
+  const styles = getComputedStyle(node);
+  return (
+    styles.paddingTop === "0px" &&
+    styles.paddingLeft === "0px" &&
+    styles.paddingRight === "0px" &&
+    styles.backgroundColor === "rgba(0, 0, 0, 0)" &&
+    styles.borderTopStyle === "none" &&
+    styles.borderRightStyle === "none" &&
+    styles.borderBottomStyle === "none" &&
+    styles.borderLeftStyle === "none"
+  );
+});
+const nodeFrameIsOnSurface = await page.locator("[data-agent-node-id='project-summary']").evaluate((node) => {
+  const surface = node.querySelector(".ac-node-surface");
+  if (!surface) return false;
+  const nodeStyles = getComputedStyle(node);
+  const surfaceStyles = getComputedStyle(surface);
+  return nodeStyles.backgroundColor === "rgba(0, 0, 0, 0)" && nodeStyles.borderTopWidth === "0px" && surfaceStyles.borderTopWidth === "1px";
+});
+const headerTypeIconVisible = (await page.locator("[data-agent-node-id='project-summary'] [data-agent-node-type-icon='document']").count()) === 1;
+const descriptionIconVisible = (await page.locator("[data-agent-node-id='home-mobile'] [data-agent-node-description-icon]").count()) === 1;
+const sectionTypeIconHidden = (await page.locator("[data-agent-node-id='project-section'] [data-agent-node-type-icon]").count()) === 0;
+const sectionBodyLabelRemoved = await page.locator("[data-agent-node-id='project-section']").evaluate((node) => node.textContent?.trim() === "Project summary");
 await page.mouse.click(24, 24);
 const canvasClickDeselects = (await page.locator(".ac-node.is-selected").count()) === 0;
+
+const projectSectionBounds = await page.locator("[data-agent-node-id='project-section']").boundingBox();
+if (!projectSectionBounds) throw new Error("Could not read project section bounds.");
+await page.mouse.click(projectSectionBounds.x + projectSectionBounds.width - 24, projectSectionBounds.y + projectSectionBounds.height - 24);
+const sectionBodyDoesNotSelect =
+  !(await page.locator("[data-agent-node-id='project-section']").evaluate((node) => node.classList.contains("is-selected"))) &&
+  (await page.locator(".ac-node.is-selected").count()) === 0;
 
 const summaryBounds = await page.locator("[data-agent-node-id='project-summary']").boundingBox();
 if (!summaryBounds) throw new Error("Could not read project summary node bounds.");
@@ -60,6 +110,15 @@ const selectedNodeCanDrag =
 const summaryDocumentRectAfterDrag = await readNodeDocumentRect(page, "project-summary");
 const selectedDragSnapsToGrid = hasGridAlignedPoint(summaryDocumentRectAfterDrag, 24);
 const resizeHandlesVisible = (await page.locator("[data-agent-node-id='project-summary'] [data-agent-resize-handle]").count()) === 4;
+const resizeHandlesTrackSurface = await page.locator("[data-agent-node-id='project-summary']").evaluate((node) => {
+  const surface = node.querySelector(".ac-node-surface");
+  const handle = node.querySelector("[data-agent-resize-handle='nw']");
+  if (!surface || !handle) return false;
+
+  const surfaceRect = surface.getBoundingClientRect();
+  const handleRect = handle.getBoundingClientRect();
+  return Math.abs(handleRect.left + handleRect.width / 2 - surfaceRect.left) < 1.5 && Math.abs(handleRect.top + handleRect.height / 2 - surfaceRect.top) < 1.5;
+});
 const summaryDocumentRectBeforeResize = await readNodeDocumentRect(page, "project-summary");
 const seResizeHandle = page.locator("[data-agent-node-id='project-summary'] [data-agent-resize-handle='se']");
 let selectedNodeCanResize = false;
@@ -98,15 +157,19 @@ const websiteFramesAreInteractiveOnlyWhenSelected =
 await page.mouse.click(24, 24);
 const sectionBoundsBeforeMove = await page.locator("[data-agent-node-id='screens-section']").boundingBox();
 if (!sectionBoundsBeforeMove) throw new Error("Could not read section bounds before moving.");
+const sectionTitleBoundsBeforeMove = await page.locator("[data-agent-node-id='screens-section'] [data-agent-section-title]").boundingBox();
+if (!sectionTitleBoundsBeforeMove) throw new Error("Could not read section title bounds before moving.");
 const sectionRectBeforeMove = await readNodeDocumentRect(page, "screens-section");
 const homeRectBeforeSectionMove = await readNodeDocumentRect(page, "home-mobile");
-await page.mouse.click(sectionBoundsBeforeMove.x + 24, sectionBoundsBeforeMove.y + 24);
+const sectionTitleX = sectionTitleBoundsBeforeMove.x + sectionTitleBoundsBeforeMove.width / 2;
+const sectionTitleY = sectionTitleBoundsBeforeMove.y + sectionTitleBoundsBeforeMove.height / 2;
+await page.mouse.click(sectionTitleX, sectionTitleY);
 const sectionClickSelects = await page
   .locator("[data-agent-node-id='screens-section']")
   .evaluate((node) => node.classList.contains("is-selected"));
-await page.mouse.move(sectionBoundsBeforeMove.x + 24, sectionBoundsBeforeMove.y + 24);
+await page.mouse.move(sectionTitleX, sectionTitleY);
 await page.mouse.down();
-await page.mouse.move(sectionBoundsBeforeMove.x + 120, sectionBoundsBeforeMove.y + 72);
+await page.mouse.move(sectionTitleX + 96, sectionTitleY + 48);
 await page.mouse.up();
 const sectionRectAfterMove = await readNodeDocumentRect(page, "screens-section");
 const homeRectAfterSectionMove = await readNodeDocumentRect(page, "home-mobile");
@@ -122,8 +185,23 @@ const tokenNotesRect = await readNodeDocumentRect(page, "token-notes");
 const tokenGuidanceWidthReasonable = tokenNotesRect.width <= 900;
 
 const initialTransform = await page.locator("[data-agent-canvas-stage]").evaluate((node) => getComputedStyle(node).transform);
+const summaryTitleHeightBeforeZoom = await readTitleVisualHeight(page, "project-summary");
+const sectionTitleHeightBeforeZoom = await readTitleVisualHeight(page, "screens-section");
+const nodeAndSectionTitleSizesMatch = Math.abs(summaryTitleHeightBeforeZoom - sectionTitleHeightBeforeZoom) < 0.75;
 await page.getByRole("button", { name: "Zoom in", exact: true }).click();
 const zoomedTransform = await page.locator("[data-agent-canvas-stage]").evaluate((node) => getComputedStyle(node).transform);
+const summaryTitleHeightAfterZoom = await readTitleVisualHeight(page, "project-summary");
+const sectionTitleHeightAfterZoom = await readTitleVisualHeight(page, "screens-section");
+const titlesStayScreenSizedAcrossZoom =
+  Math.abs(summaryTitleHeightBeforeZoom - summaryTitleHeightAfterZoom) < 0.75 &&
+  Math.abs(sectionTitleHeightBeforeZoom - sectionTitleHeightAfterZoom) < 0.75;
+await page.getByRole("button", { name: "Zoom out", exact: true }).click();
+await page.getByRole("button", { name: "Zoom out", exact: true }).click();
+await page.getByRole("button", { name: "Zoom out", exact: true }).click();
+const headerIconsHideWhenZoomedOut = await page.locator("[data-agent-node-id='project-summary'] [data-agent-node-type-icon='document']").evaluate((node) => {
+  const stage = node.closest("[data-agent-canvas-stage]");
+  return stage?.getAttribute("data-agent-header-density") === "summary" && getComputedStyle(node).display === "none";
+});
 const hasToolbarTidyButtons =
   (await page.getByRole("button", { name: "Tidy row", exact: true }).count()) === 1 &&
   (await page.getByRole("button", { name: "Tidy grid", exact: true }).count()) === 1;
@@ -161,10 +239,15 @@ await page.waitForFunction(() => {
     Math.abs(viewport.y - matrix[5]) < 0.5
   );
 });
-const persistedTransformBeforeReload = zoomedTransform;
+const persistedTransformBeforeReload = await page.locator("[data-agent-canvas-stage]").evaluate((node) => getComputedStyle(node).transform);
 await page.reload({ waitUntil: "domcontentloaded" });
 await page.locator("[data-agent-canvas-stage]").waitFor();
 const persistedTransformAfterReload = await page.locator("[data-agent-canvas-stage]").evaluate((node) => getComputedStyle(node).transform);
+const hasComponentSpec = await frameHasText(page, "component-spec", "Component spec");
+const hasDinnerPost = await frameHasText(page, "fam-wall-mobile", "Dinner tonight");
+const hasLoggedOutHome = await frameHasText(page, "home-mobile", "Create your fam");
+const hasCreateFamFields = await frameHasText(page, "create-fam-mobile", "Fam name");
+const nodeFootersRemoved = (await page.locator(".ac-website-node > p, .ac-media-node figcaption").count()) === 0;
 
 const result = await page.evaluate(() => {
   const stage = document.querySelector("[data-agent-canvas-stage]");
@@ -198,11 +281,7 @@ const result = await page.evaluate(() => {
       Boolean(document.querySelector("[data-agent-node-id='screens-section'].ac-node--section")) &&
       Boolean(document.querySelector("[data-agent-node-id='components-section'].ac-node--section")) &&
       Boolean(document.querySelector("[data-agent-node-id='tokens-section'].ac-node--section")),
-    hasComponentSpec: document.querySelector("[data-agent-node-id='component-spec']")?.textContent?.includes("Component spec") || false,
     hasDesignTokens: document.querySelector("[data-agent-node-id='design-tokens']")?.textContent?.includes("Design system") || false,
-    hasDinnerPost: document.querySelector("[data-agent-node-id='fam-wall-mobile']")?.textContent?.includes("Dinner tonight") || false,
-    hasLoggedOutHome: document.querySelector("[data-agent-node-id='home-mobile']")?.textContent?.includes("Create your fam") || false,
-    hasCreateFamFields: document.querySelector("[data-agent-node-id='create-fam-mobile']")?.textContent?.includes("Fam name") || false,
     canvasThemeAttribute: shellElement?.getAttribute("data-agent-canvas-theme") === "system",
     themeVariablesDiffer: lightCanvasColor !== darkCanvasColor,
     shellWidth: shell ? Math.round(shell.width) : 0,
@@ -219,13 +298,30 @@ console.log(
   JSON.stringify(
     {
       ...result,
+      hasComponentSpec,
+      hasDinnerPost,
+      hasLoggedOutHome,
+      hasCreateFamFields,
       demoStatePersistsAfterReload: persistedTransformBeforeReload === persistedTransformAfterReload,
+      gridBackgroundRemoved,
+      nodeShadowRemoved,
+      selectedBorderIsSimple,
+      headerHasNoPaddingOrBg,
+      nodeFrameIsOnSurface,
+      headerTypeIconVisible,
+      descriptionIconVisible,
+      headerIconsHideWhenZoomedOut,
+      sectionTypeIconHidden,
+      sectionBodyLabelRemoved,
+      nodeFootersRemoved,
       canvasClickDeselects: summarySelectedBeforeCanvasClick && canvasClickDeselects,
+      sectionBodyDoesNotSelect,
       unselectedNodeDragPans,
       clickSelectsNode,
       selectedNodeCanDrag,
       selectedDragSnapsToGrid,
       resizeHandlesVisible,
+      resizeHandlesTrackSurface,
       selectedNodeCanResize,
       resizeSnapsToGrid,
       resizeShowsSnapGuide,
@@ -234,6 +330,8 @@ console.log(
       sectionClickSelects,
       sectionMoveCarriesChildren,
       tokenGuidanceWidthReasonable,
+      nodeAndSectionTitleSizesMatch,
+      titlesStayScreenSizedAcrossZoom,
       hasToolbarTidyButtons,
       toolbarHasTooltips,
       toolbarIsCompact: toolbarStyle.buttonHeight <= 32,
@@ -259,6 +357,10 @@ async function readNodeDocumentRect(page, id) {
   }));
 }
 
+async function readTitleVisualHeight(page, id) {
+  return page.locator(`[data-agent-node-id='${id}'] .ac-node-header strong`).evaluate((node) => node.getBoundingClientRect().height);
+}
+
 function hasGridAlignedPoint(rect, gridSize) {
   return [rect.x, rect.x + rect.width / 2, rect.x + rect.width, rect.y, rect.y + rect.height / 2, rect.y + rect.height].some((value) =>
     isMultiple(value, gridSize)
@@ -267,4 +369,9 @@ function hasGridAlignedPoint(rect, gridSize) {
 
 function isMultiple(value, gridSize) {
   return Math.abs(value / gridSize - Math.round(value / gridSize)) < 0.01;
+}
+
+async function frameHasText(page, id, text) {
+  const bodyText = await page.frameLocator(`[data-agent-node-id='${id}'] iframe`).locator("body").textContent();
+  return bodyText?.includes(text) || false;
 }

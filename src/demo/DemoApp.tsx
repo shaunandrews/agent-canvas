@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Info } from "lucide-react";
 import {
   AgentCanvas,
   placeCanvasNode,
@@ -15,6 +16,7 @@ import {
   type TextCanvasNode,
   type WebsiteCanvasNode
 } from "../lib";
+import { getNodeHeaderDescription, getNodeTypeIcon } from "../lib/react/defaultRenderers";
 import { initialDocument } from "./sampleCanvas";
 
 type RemoteOperationMessage = {
@@ -187,10 +189,12 @@ function DemoDocumentRenderer({
   return (
     <article className={`ac-node-content ac-document-node${status ? " demo-stream-node" : ""}`}>
       <DemoNodeHeader label="Document" node={node} transientEditing={transientEditing} />
-      <div className="ac-document-body demo-stream-body" aria-live={isEditing ? "polite" : undefined}>
-        {streamLabel && status && <p className="demo-stream-note">{streamLabel}</p>}
-        {renderDemoTextBlocks(text, isEditing)}
-        {isEditing && <span className="demo-stream-cursor" aria-hidden="true" />}
+      <div className="ac-node-surface">
+        <div className="ac-document-body demo-stream-body" aria-live={isEditing ? "polite" : undefined}>
+          {streamLabel && status && <p className="demo-stream-note">{streamLabel}</p>}
+          {renderDemoTextBlocks(text, isEditing)}
+          {isEditing && <span className="demo-stream-cursor" aria-hidden="true" />}
+        </div>
       </div>
     </article>
   );
@@ -200,7 +204,9 @@ function DemoTextRenderer({ node, transientEditing }: AgentCanvasRendererProps<T
   return (
     <article className={`ac-node-content ac-text-node ac-text-node--${node.content.tone || "note"}`}>
       <DemoNodeHeader label="Text" node={node} transientEditing={transientEditing} />
-      <p>{node.content.text}</p>
+      <div className="ac-node-surface">
+        <p>{node.content.text}</p>
+      </div>
     </article>
   );
 }
@@ -215,14 +221,15 @@ function DemoWebsiteRenderer({
   return (
     <article className="ac-node-content ac-website-node">
       <DemoNodeHeader label="Website" node={node} transientEditing={transientEditing} />
-      <iframe
-        title={node.title || node.content.url || "Website preview"}
-        src={node.content.url}
-        srcDoc={node.content.srcDoc}
-        sandbox={sandbox}
-        style={{ pointerEvents: selected ? "auto" : "none" }}
-      />
-      {node.content.caption && <p>{node.content.caption}</p>}
+      <div className="ac-node-surface ac-website-surface">
+        <iframe
+          title={node.title || node.content.url || "Website preview"}
+          src={node.content.url}
+          srcDoc={node.content.srcDoc}
+          sandbox={sandbox}
+          style={{ pointerEvents: selected ? "auto" : "none" }}
+        />
+      </div>
     </article>
   );
 }
@@ -231,12 +238,14 @@ function DemoFileRenderer({ node, transientEditing }: AgentCanvasRendererProps<F
   return (
     <article className="ac-node-content ac-file-node">
       <DemoNodeHeader label={node.content.mimeType || "File"} node={node} transientEditing={transientEditing} />
-      <div className="ac-file-glyph" aria-hidden="true">
-        {fileInitials(node.content.name)}
+      <div className="ac-node-surface">
+        <div className="ac-file-glyph" aria-hidden="true">
+          {fileInitials(node.content.name)}
+        </div>
+        <strong>{node.content.name}</strong>
+        {node.content.sizeLabel && <span>{node.content.sizeLabel}</span>}
+        {node.content.summary && <p>{node.content.summary}</p>}
       </div>
-      <strong>{node.content.name}</strong>
-      {node.content.sizeLabel && <span>{node.content.sizeLabel}</span>}
-      {node.content.summary && <p>{node.content.summary}</p>}
     </article>
   );
 }
@@ -251,12 +260,31 @@ function DemoNodeHeader({
   transientEditing?: boolean;
 }) {
   const badge = getDemoBadge(node, transientEditing);
+  const TypeIcon = getNodeTypeIcon(node.type);
+  const description = getNodeHeaderDescription(node);
+  const showTypeIcon = node.type !== "section";
 
   return (
     <header className="ac-node-header">
-      <span>{label}</span>
-      {node.title && <strong>{node.title}</strong>}
-      {badge && <span className={`demo-stream-badge is-${badge.status}`}>{badge.label}</span>}
+      <strong {...(node.type === "section" ? { "data-agent-section-title": "" } : {})}>{node.title || label}</strong>
+      <span className="ac-node-header-actions">
+        {badge && <span className={`demo-stream-badge is-${badge.status}`}>{badge.label}</span>}
+        {description && (
+          <span
+            aria-label={`Description: ${description}`}
+            className="ac-node-header-icon"
+            data-agent-node-description-icon=""
+            title={description}
+          >
+            <Info size={14} strokeWidth={2} />
+          </span>
+        )}
+        {showTypeIcon && (
+          <span aria-label={`${label} node`} className="ac-node-header-icon" data-agent-node-type-icon={node.type} title={label}>
+            <TypeIcon size={14} strokeWidth={2} />
+          </span>
+        )}
+      </span>
     </header>
   );
 }

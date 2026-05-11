@@ -11,6 +11,7 @@ import type {
   WebsiteCanvasNode
 } from "../types";
 import { extractNodeText } from "../core/agent-context";
+import { File as FileIcon, FileText, Globe2, Image, Info, Type, Video } from "lucide-react";
 
 export const defaultRenderers: Record<CanvasNode["type"], AgentCanvasRenderer> = {
   document: DocumentNodeRenderer as AgentCanvasRenderer,
@@ -26,7 +27,9 @@ function DocumentNodeRenderer({ node }: AgentCanvasRendererProps<DocumentCanvasN
   return (
     <article className="ac-node-content ac-document-node">
       <NodeHeader node={node} label="Document" />
-      <div className="ac-document-body">{renderTextBlocks(node.content.markdown || node.content.excerpt || stripHtml(node.content.html) || "")}</div>
+      <div className="ac-node-surface">
+        <div className="ac-document-body">{renderTextBlocks(node.content.markdown || node.content.excerpt || stripHtml(node.content.html) || "")}</div>
+      </div>
     </article>
   );
 }
@@ -35,7 +38,9 @@ function TextNodeRenderer({ node }: AgentCanvasRendererProps<TextCanvasNode>) {
   return (
     <article className={`ac-node-content ac-text-node ac-text-node--${node.content.tone || "note"}`}>
       <NodeHeader node={node} label="Text" />
-      <p>{node.content.text}</p>
+      <div className="ac-node-surface">
+        <p>{node.content.text}</p>
+      </div>
     </article>
   );
 }
@@ -43,13 +48,10 @@ function TextNodeRenderer({ node }: AgentCanvasRendererProps<TextCanvasNode>) {
 function ImageNodeRenderer({ node }: AgentCanvasRendererProps<ImageCanvasNode>) {
   return (
     <figure className="ac-node-content ac-media-node">
-      <img src={node.content.src} alt={node.content.alt || node.title || ""} draggable={false} />
-      {(node.title || node.content.caption) && (
-        <figcaption>
-          {node.title && <strong>{node.title}</strong>}
-          {node.content.caption && <span>{node.content.caption}</span>}
-        </figcaption>
-      )}
+      <NodeHeader node={node} label="Image" />
+      <div className="ac-node-surface ac-media-surface">
+        <img src={node.content.src} alt={node.content.alt || node.title || ""} draggable={false} />
+      </div>
     </figure>
   );
 }
@@ -57,13 +59,10 @@ function ImageNodeRenderer({ node }: AgentCanvasRendererProps<ImageCanvasNode>) 
 function VideoNodeRenderer({ node }: AgentCanvasRendererProps<VideoCanvasNode>) {
   return (
     <figure className="ac-node-content ac-media-node">
-      <video src={node.content.src} poster={node.content.poster} controls />
-      {(node.title || node.content.caption) && (
-        <figcaption>
-          {node.title && <strong>{node.title}</strong>}
-          {node.content.caption && <span>{node.content.caption}</span>}
-        </figcaption>
-      )}
+      <NodeHeader node={node} label="Video" />
+      <div className="ac-node-surface ac-media-surface">
+        <video src={node.content.src} poster={node.content.poster} controls />
+      </div>
     </figure>
   );
 }
@@ -74,14 +73,15 @@ function WebsiteNodeRenderer({ node, selected }: AgentCanvasRendererProps<Websit
   return (
     <article className="ac-node-content ac-website-node">
       <NodeHeader node={node} label="Website" />
-      <iframe
-        title={node.title || node.content.url || "Website preview"}
-        src={node.content.url}
-        srcDoc={node.content.srcDoc}
-        sandbox={sandbox}
-        style={{ pointerEvents: selected ? "auto" : "none" }}
-      />
-      {node.content.caption && <p>{node.content.caption}</p>}
+      <div className="ac-node-surface ac-website-surface">
+        <iframe
+          title={node.title || node.content.url || "Website preview"}
+          src={node.content.url}
+          srcDoc={node.content.srcDoc}
+          sandbox={sandbox}
+          style={{ pointerEvents: selected ? "auto" : "none" }}
+        />
+      </div>
     </article>
   );
 }
@@ -90,12 +90,14 @@ function FileNodeRenderer({ node }: AgentCanvasRendererProps<FileCanvasNode>) {
   return (
     <article className="ac-node-content ac-file-node">
       <NodeHeader node={node} label={node.content.mimeType || "File"} />
-      <div className="ac-file-glyph" aria-hidden="true">
-        {fileInitials(node.content.name)}
+      <div className="ac-node-surface">
+        <div className="ac-file-glyph" aria-hidden="true">
+          {fileInitials(node.content.name)}
+        </div>
+        <strong>{node.content.name}</strong>
+        {node.content.sizeLabel && <span>{node.content.sizeLabel}</span>}
+        {node.content.summary && <p>{node.content.summary}</p>}
       </div>
-      <strong>{node.content.name}</strong>
-      {node.content.sizeLabel && <span>{node.content.sizeLabel}</span>}
-      {node.content.summary && <p>{node.content.summary}</p>}
     </article>
   );
 }
@@ -104,20 +106,55 @@ function SectionNodeRenderer({ node }: AgentCanvasRendererProps<SectionCanvasNod
   return (
     <article className="ac-node-content ac-section-node">
       <NodeHeader node={node} label="Section" />
-      {(node.content.label || node.content.description || node.description) && (
-        <p>{node.content.label || node.content.description || node.description}</p>
-      )}
+      <div className="ac-node-surface ac-section-surface" aria-hidden="true" />
     </article>
   );
 }
 
 function NodeHeader({ node, label }: { node: CanvasNode; label: string }) {
+  const TypeIcon = node.type === "section" ? undefined : getNodeTypeIcon(node.type);
+  const description = getNodeHeaderDescription(node);
+
   return (
     <header className="ac-node-header">
-      <span>{label}</span>
-      {node.title && <strong>{node.title}</strong>}
+      <strong {...(node.type === "section" ? { "data-agent-section-title": "" } : {})}>{node.title || label}</strong>
+      <span className="ac-node-header-actions">
+        {description && (
+          <span
+            aria-label={`Description: ${description}`}
+            className="ac-node-header-icon"
+            data-agent-node-description-icon=""
+            title={description}
+          >
+            <Info size={14} strokeWidth={2} />
+          </span>
+        )}
+        {TypeIcon && (
+          <span aria-label={`${label} node`} className="ac-node-header-icon" data-agent-node-type-icon={node.type} title={label}>
+            <TypeIcon size={14} strokeWidth={2} />
+          </span>
+        )}
+      </span>
     </header>
   );
+}
+
+export function getNodeTypeIcon(type: CanvasNode["type"]) {
+  if (type === "document") return FileText;
+  if (type === "text") return Type;
+  if (type === "image") return Image;
+  if (type === "video") return Video;
+  if (type === "website") return Globe2;
+  return FileIcon;
+}
+
+export function getNodeHeaderDescription(node: CanvasNode) {
+  if (node.description) return node.description;
+  if (node.type === "image" || node.type === "video") return node.content.caption;
+  if (node.type === "website") return node.content.caption || node.content.url;
+  if (node.type === "file") return node.content.summary;
+  if (node.type === "section") return node.content.description || node.description;
+  return undefined;
 }
 
 function renderTextBlocks(text: string) {
