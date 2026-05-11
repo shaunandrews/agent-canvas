@@ -13,6 +13,7 @@ import { AlignHorizontalSpaceBetween, Crosshair, LayoutGrid, LocateFixed, MouseP
 import { createAgentCanvasContext } from "../core/agent-context";
 import { applyCanvasOperations } from "../core/operations";
 import { fitRectInViewport, getNodesBounds, nodeToRect, rectsIntersect, viewportToCanvasRect, clampScale } from "../core/geometry";
+import { snapCanvasRect } from "../core/snapping";
 import { sortNodes } from "../core/document";
 import type {
   AgentCanvasContext,
@@ -23,6 +24,10 @@ import type {
   CanvasNode,
   CanvasOperation,
   CanvasOperationResult,
+  CanvasRect,
+  CanvasResizeHandle,
+  CanvasResizeOptions,
+  CanvasSnapGuide,
   CanvasViewport
 } from "../types";
 import { defaultRenderers, getNodeAccessibleLabel } from "./defaultRenderers";
@@ -43,6 +48,7 @@ type DragState =
       startY: number;
       nodeIds: string[];
       origins: Record<string, { x: number; y: number }>;
+      startBounds: CanvasRect;
     }
   | {
       mode: "node-select-or-pan";
@@ -52,9 +58,21 @@ type DragState =
       nodeId: string;
       origin: CanvasViewport;
       moved: boolean;
+    }
+  | {
+      mode: "resize";
+      pointerId: number;
+      startX: number;
+      startY: number;
+      nodeId: string;
+      handle: CanvasResizeHandle;
+      startRect: CanvasRect;
+      minWidth: number;
+      minHeight: number;
     };
 
 const DEFAULT_VIEWPORT: CanvasViewport = { x: 72, y: 72, scale: 1 };
+const DEFAULT_RESIZE_HANDLES: CanvasResizeHandle[] = ["nw", "ne", "sw", "se"];
 
 export const AgentCanvas = forwardRef<AgentCanvasHandle, AgentCanvasProps>(function AgentCanvas(
   {
@@ -64,6 +82,8 @@ export const AgentCanvas = forwardRef<AgentCanvasHandle, AgentCanvasProps>(funct
     selectedNodeIds,
     readonly = false,
     theme = "system",
+    snap,
+    resize = {},
     className,
     onDocumentChange,
     onSelectionChange,
@@ -77,9 +97,11 @@ export const AgentCanvas = forwardRef<AgentCanvasHandle, AgentCanvasProps>(funct
   const [viewport, setViewportState] = useState<CanvasViewport>(initialViewport);
   const [internalSelection, setInternalSelection] = useState<string[]>(selectedNodeIds || []);
   const [isPanning, setIsPanning] = useState(false);
+  const [snapGuides, setSnapGuides] = useState<CanvasSnapGuide[]>([]);
   const [screenSize, setScreenSize] = useState({ width: 1, height: 1 });
   const mergedRenderers = useMemo(() => ({ ...defaultRenderers, ...renderers }), [renderers]);
   const currentSelection = selectedNodeIds || internalSelection;
+  const resizeOptions = useMemo(() => resolveResizeOptions(resize), [resize]);
 
   const documentRef = useRef(canvasDocument);
   const viewportRef = useRef(viewport);
@@ -302,6 +324,7 @@ export const AgentCanvas = forwardRef<AgentCanvasHandle, AgentCanvasProps>(funct
         .filter(Boolean)
         .map((item) => [item!.id, { x: item!.x, y: item!.y }])
     );
+    const draggedNodes = canvasDocument.nodes.filter((item) => currentSelection.includes(item.id));
 
     dragRef.current = {
       mode: "node",
@@ -309,7 +332,28 @@ export const AgentCanvas = forwardRef<AgentCanvasHandle, AgentCanvasProps>(funct
       startX: event.clientX,
       startY: event.clientY,
       nodeIds: currentSelection,
-      origins
+      origins,
+      startBounds: getNodesBounds(draggedNodes)
+    };
+    event.currentTarget.setPointerCapture(event.pointerId);
+  }
+
+  function handleResizePointerDown(event: ReactPointerEvent<HTMLElement>, node: CanvasNode, handle: CanvasResizeHandle) {
+    if (event.button !== 0 || readonly || node.locked || !canResizeNode(node, currentSelection, resizeOptions)) return;
+    event.preventDefault();
+    event.stopPropagation();
+
+    const minSize = getNodeMinSize(node, resizeOptions);
+    dragRef.current = {
+      mode: "resize",
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      nodeId: node.id,
+      handle,
+      startRect: nodeToRect(node),
+      minWidth: minSize.minWidth,
+      minHeight: minSize.minHeight
     };
     event.currentTarget.setPointerCapture(event.pointerId);
   }
@@ -348,12 +392,52 @@ export const AgentCanvas = forwardRef<AgentCanvasHandle, AgentCanvasProps>(funct
 
     const dx = (event.clientX - drag.startX) / viewportRef.current.scale;
     const dy = (event.clientY - drag.startY) / viewportRef.current.scale;
+
+    if (drag.mode === "resize") {
+      const proposedRect = resizeRectFromHandle(drag.startRect, drag.handle, dx, dy, drag.minWidth, drag.minHeight);
+      const snapResult = snapCanvasRect({
+        document: documentRef.current,
+        rect: proposedRect,
+        movingNodeIds: [drag.nodeId],
+        options: snap,
+        viewportScale: viewportRef.current.scale,
+        mode: "resize",
+        resizeHandle: drag.handle,
+        minWidth: drag.minWidth,
+        minHeight: drag.minHeight
+      });
+
+      setSnapGuides(snapResult.guides);
+      setCanvasDocument((current) => {
+        const next = {
+          ...current,
+          nodes: current.nodes.map((node) => (node.id === drag.nodeId ? ({ ...node, ...snapResult.rect } as typeof node) : node))
+        };
+        documentRef.current = next;
+        return next;
+      });
+      return;
+    }
+
+    const proposedBounds = { ...drag.startBounds, x: drag.startBounds.x + dx, y: drag.startBounds.y + dy };
+    const snapResult = snapCanvasRect({
+      document: documentRef.current,
+      rect: proposedBounds,
+      movingNodeIds: drag.nodeIds,
+      options: snap,
+      viewportScale: viewportRef.current.scale,
+      mode: "move"
+    });
+    const snappedDx = snapResult.rect.x - drag.startBounds.x;
+    const snappedDy = snapResult.rect.y - drag.startBounds.y;
+
+    setSnapGuides(snapResult.guides);
     setCanvasDocument((current) => {
       const next = {
         ...current,
         nodes: current.nodes.map((node) => {
           const origin = drag.origins[node.id];
-          return origin ? { ...node, x: origin.x + dx, y: origin.y + dy } : node;
+          return origin ? { ...node, x: origin.x + snappedDx, y: origin.y + snappedDy } : node;
         })
       };
       documentRef.current = next;
@@ -367,13 +451,14 @@ export const AgentCanvas = forwardRef<AgentCanvasHandle, AgentCanvasProps>(funct
 
     dragRef.current = null;
     setIsPanning(false);
+    setSnapGuides([]);
     if (drag.mode === "pan" && !drag.moved) {
       setSelection([]);
     }
     if (drag.mode === "node-select-or-pan" && !drag.moved) {
       setSelection([drag.nodeId]);
     }
-    if (drag.mode === "node") {
+    if (drag.mode === "node" || drag.mode === "resize") {
       const result: CanvasOperationResult = { operation: "updateNode", ok: true };
       onDocumentChange?.(documentRef.current, [result]);
     }
@@ -426,6 +511,7 @@ export const AgentCanvas = forwardRef<AgentCanvasHandle, AgentCanvasProps>(funct
         {sortedNodes.map((node) => {
           const Renderer = mergedRenderers[node.type];
           const selected = currentSelection.includes(node.id);
+          const showResizeHandles = canResizeNode(node, currentSelection, resizeOptions);
           return (
             <article
               aria-label={getNodeAccessibleLabel(node)}
@@ -445,9 +531,34 @@ export const AgentCanvas = forwardRef<AgentCanvasHandle, AgentCanvasProps>(funct
               tabIndex={0}
             >
               {Renderer ? <Renderer node={node as never} selected={selected} /> : null}
+              {showResizeHandles
+                ? resizeOptions.handles.map((handle) => (
+                    <button
+                      aria-label={`Resize ${node.title || node.id} from ${getResizeHandleLabel(handle)}`}
+                      className={`ac-resize-handle ac-resize-handle--${handle}`}
+                      data-agent-resize-handle={handle}
+                      key={handle}
+                      onPointerDown={(event) => handleResizePointerDown(event, node, handle)}
+                      type="button"
+                    />
+                  ))
+                : null}
             </article>
           );
         })}
+        {snapGuides.map((guide) => (
+          <div
+            aria-hidden="true"
+            className={`ac-snap-guide ac-snap-guide--${guide.orientation} ac-snap-guide--${guide.source}`}
+            data-agent-snap-guide={guide.source}
+            key={guide.id}
+            style={
+              guide.orientation === "vertical"
+                ? { left: guide.position, top: guide.start, height: Math.max(1, guide.end - guide.start) }
+                : { top: guide.position, left: guide.start, width: Math.max(1, guide.end - guide.start) }
+            }
+          />
+        ))}
       </div>
 
       <div className="ac-toolbar" role="toolbar" aria-label="Canvas controls">
@@ -497,4 +608,83 @@ function findLastFocusOperation(operations: CanvasOperation[]) {
     if (operation.type === "focus") return operation;
   }
   return undefined;
+}
+
+interface NormalizedResizeOptions {
+  enabled: boolean;
+  handles: CanvasResizeHandle[];
+  minWidth?: number;
+  minHeight?: number;
+}
+
+const NODE_MIN_SIZE: Record<CanvasNode["type"], { minWidth: number; minHeight: number }> = {
+  document: { minWidth: 240, minHeight: 160 },
+  text: { minWidth: 160, minHeight: 96 },
+  image: { minWidth: 160, minHeight: 120 },
+  video: { minWidth: 160, minHeight: 120 },
+  website: { minWidth: 240, minHeight: 160 },
+  file: { minWidth: 220, minHeight: 140 },
+  group: { minWidth: 160, minHeight: 120 }
+};
+
+function resolveResizeOptions(resize: CanvasResizeOptions | false): NormalizedResizeOptions {
+  if (resize === false) return { enabled: false, handles: DEFAULT_RESIZE_HANDLES };
+
+  return {
+    enabled: resize.enabled ?? true,
+    handles: resize.handles?.length ? [...new Set(resize.handles)] : DEFAULT_RESIZE_HANDLES,
+    minWidth: resize.minWidth,
+    minHeight: resize.minHeight
+  };
+}
+
+function canResizeNode(node: CanvasNode, selection: string[], resizeOptions: NormalizedResizeOptions) {
+  return resizeOptions.enabled && selection.length === 1 && selection[0] === node.id && !node.locked && node.type !== "group";
+}
+
+function getNodeMinSize(node: CanvasNode, resizeOptions: NormalizedResizeOptions) {
+  const nodeDefault = NODE_MIN_SIZE[node.type];
+  return {
+    minWidth: Math.max(1, resizeOptions.minWidth ?? nodeDefault.minWidth),
+    minHeight: Math.max(1, resizeOptions.minHeight ?? nodeDefault.minHeight)
+  };
+}
+
+function resizeRectFromHandle(
+  rect: CanvasRect,
+  handle: CanvasResizeHandle,
+  dx: number,
+  dy: number,
+  minWidth: number,
+  minHeight: number
+): CanvasRect {
+  let x = rect.x;
+  let y = rect.y;
+  let width = rect.width;
+  let height = rect.height;
+
+  if (handle.includes("w")) {
+    const resolvedDx = Math.min(dx, rect.width - minWidth);
+    x = rect.x + resolvedDx;
+    width = rect.width - resolvedDx;
+  } else {
+    width = Math.max(minWidth, rect.width + dx);
+  }
+
+  if (handle.includes("n")) {
+    const resolvedDy = Math.min(dy, rect.height - minHeight);
+    y = rect.y + resolvedDy;
+    height = rect.height - resolvedDy;
+  } else {
+    height = Math.max(minHeight, rect.height + dy);
+  }
+
+  return { x, y, width, height };
+}
+
+function getResizeHandleLabel(handle: CanvasResizeHandle) {
+  if (handle === "nw") return "top left";
+  if (handle === "ne") return "top right";
+  if (handle === "sw") return "bottom left";
+  return "bottom right";
 }

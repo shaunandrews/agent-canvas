@@ -122,6 +122,45 @@ export interface CanvasRect {
   height: number;
 }
 
+export type CanvasSnapTarget = "edge" | "center";
+
+export interface CanvasGridSnapOptions {
+  enabled?: boolean;
+  size?: number;
+}
+
+export interface CanvasAlignmentSnapOptions {
+  enabled?: boolean;
+  targets?: CanvasSnapTarget[];
+  includeGroups?: boolean;
+}
+
+export interface CanvasSnapOptions {
+  enabled?: boolean;
+  grid?: CanvasGridSnapOptions;
+  alignment?: CanvasAlignmentSnapOptions;
+  showGuides?: boolean;
+  thresholdPx?: number;
+}
+
+export type CanvasResizeHandle = "nw" | "ne" | "sw" | "se";
+
+export interface CanvasResizeOptions {
+  enabled?: boolean;
+  handles?: CanvasResizeHandle[];
+  minWidth?: number;
+  minHeight?: number;
+}
+
+export interface CanvasSnapGuide {
+  id: string;
+  orientation: "horizontal" | "vertical";
+  position: number;
+  start: number;
+  end: number;
+  source: "alignment" | "grid";
+}
+
 export type CanvasPlacementMode =
   | "freeform"
   | "avoid-overlap"
@@ -227,6 +266,8 @@ export interface AgentCanvasProps {
   selectedNodeIds?: string[];
   readonly?: boolean;
   theme?: AgentCanvasTheme;
+  snap?: CanvasSnapOptions;
+  resize?: CanvasResizeOptions | false;
   className?: string;
   onDocumentChange?: (document: CanvasDocument, results: CanvasOperationResult[]) => void;
   onSelectionChange?: (ids: string[]) => void;

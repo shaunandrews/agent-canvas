@@ -33,7 +33,17 @@ const document = createCanvasDocument({
 });
 
 export function App() {
-  return <AgentCanvas document={document} theme="system" />;
+  return (
+    <AgentCanvas
+      document={document}
+      theme="system"
+      snap={{
+        enabled: true,
+        grid: { enabled: true, size: 24 },
+        alignment: { enabled: true, targets: ["edge", "center"] }
+      }}
+    />
+  );
 }
 ```
 
@@ -49,6 +59,33 @@ export function App() {
 The pure helpers in `src/lib/core` can also run on a server before broadcasting updated snapshots to clients.
 
 `AgentCanvas` supports `theme="system"`, `theme="light"`, and `theme="dark"`. The default is `system`, which follows `prefers-color-scheme`.
+
+## Interaction Options
+
+Dragging an unselected node pans the canvas. Click a node first to select it, then drag the selected node to move it. A single selected, unlocked, non-group node also shows corner resize handles.
+
+Snapping is opt-in for package consumers:
+
+```tsx
+<AgentCanvas
+  document={document}
+  snap={{
+    enabled: true,
+    thresholdPx: 8,
+    showGuides: true,
+    grid: { enabled: true, size: 24 },
+    alignment: { enabled: true, targets: ["edge", "center"], includeGroups: false }
+  }}
+  resize={{
+    enabled: true,
+    handles: ["nw", "ne", "sw", "se"],
+    minWidth: 180,
+    minHeight: 120
+  }}
+/>
+```
+
+Snapping and resizing do not change the document schema. Drag and resize interactions commit standard `updateNode` changes to `x`, `y`, `width`, and `height`, so agents and host apps can use the same operation API.
 
 ### Local Control API
 

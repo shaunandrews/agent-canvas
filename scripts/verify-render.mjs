@@ -62,6 +62,33 @@ const selectedNodeCanDrag =
   transformAfterSelectedNodeDrag === transformBeforeSelectedNodeDrag &&
   (Math.abs(premiseBoundsAfterSelectedDrag.x - premiseBoundsAfterClick.x) > 8 ||
     Math.abs(premiseBoundsAfterSelectedDrag.y - premiseBoundsAfterClick.y) > 8);
+const premiseDocumentRectAfterDrag = await readNodeDocumentRect(page, "premise");
+const selectedDragSnapsToGrid = hasGridAlignedPoint(premiseDocumentRectAfterDrag, 24);
+const resizeHandlesVisible = (await page.locator("[data-agent-node-id='premise'] [data-agent-resize-handle]").count()) === 4;
+const premiseDocumentRectBeforeResize = await readNodeDocumentRect(page, "premise");
+const seResizeHandle = page.locator("[data-agent-node-id='premise'] [data-agent-resize-handle='se']");
+let selectedNodeCanResize = false;
+let resizeSnapsToGrid = false;
+let resizeShowsSnapGuide = false;
+let snapGuidesClearAfterRelease = false;
+const resizeHandleBounds = await seResizeHandle.boundingBox();
+if (resizeHandleBounds) {
+  await page.mouse.move(resizeHandleBounds.x + resizeHandleBounds.width / 2, resizeHandleBounds.y + resizeHandleBounds.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(resizeHandleBounds.x + resizeHandleBounds.width / 2 + 30, resizeHandleBounds.y + resizeHandleBounds.height / 2 + 30);
+  resizeShowsSnapGuide = (await page.locator("[data-agent-snap-guide]").count()) > 0;
+  await page.mouse.up();
+  await page.waitForTimeout(50);
+  snapGuidesClearAfterRelease = (await page.locator("[data-agent-snap-guide]").count()) === 0;
+
+  const premiseDocumentRectAfterResize = await readNodeDocumentRect(page, "premise");
+  selectedNodeCanResize =
+    premiseDocumentRectAfterResize.width > premiseDocumentRectBeforeResize.width + 10 &&
+    premiseDocumentRectAfterResize.height > premiseDocumentRectBeforeResize.height + 10;
+  resizeSnapsToGrid =
+    isMultiple(premiseDocumentRectAfterResize.x + premiseDocumentRectAfterResize.width, 24) ||
+    isMultiple(premiseDocumentRectAfterResize.y + premiseDocumentRectAfterResize.height, 24);
+}
 
 const initialTransform = await page.locator("[data-agent-canvas-stage]").evaluate((node) => getComputedStyle(node).transform);
 await page.getByRole("button", { name: "Zoom in", exact: true }).click();
@@ -206,6 +233,12 @@ console.log(
       unselectedNodeDragPans,
       clickSelectsNode,
       selectedNodeCanDrag,
+      selectedDragSnapsToGrid,
+      resizeHandlesVisible,
+      selectedNodeCanResize,
+      resizeSnapsToGrid,
+      resizeShowsSnapGuide,
+      snapGuidesClearAfterRelease,
       hasToolbarTidyButtons,
       toolbarHasTooltips,
       toolbarIsCompact: toolbarStyle.buttonHeight <= 32,
@@ -221,3 +254,22 @@ console.log(
     2
   )
 );
+
+async function readNodeDocumentRect(page, id) {
+  return page.locator(`[data-agent-node-id='${id}']`).evaluate((node) => ({
+    x: Number(node.style.left.replace("px", "")),
+    y: Number(node.style.top.replace("px", "")),
+    width: Number(node.style.width.replace("px", "")),
+    height: Number(node.style.height.replace("px", ""))
+  }));
+}
+
+function hasGridAlignedPoint(rect, gridSize) {
+  return [rect.x, rect.x + rect.width / 2, rect.x + rect.width, rect.y, rect.y + rect.height / 2, rect.y + rect.height].some((value) =>
+    isMultiple(value, gridSize)
+  );
+}
+
+function isMultiple(value, gridSize) {
+  return Math.abs(value / gridSize - Math.round(value / gridSize)) < 0.01;
+}

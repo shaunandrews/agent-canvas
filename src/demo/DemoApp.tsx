@@ -24,6 +24,7 @@ import {
   type CanvasDocument,
   type CanvasNode,
   type CanvasOperation,
+  type CanvasSnapOptions,
   type CanvasViewport,
   type DocumentCanvasNode,
   type FileCanvasNode,
@@ -80,6 +81,13 @@ const STREAM_NODE_ID = "live-synthesis";
 const CONTROL_EVENTS_URL = "http://127.0.0.1:8787/events";
 const CONTROL_SNAPSHOT_URL = "http://127.0.0.1:8787/snapshot";
 const CONTROL_LABEL = "127.0.0.1:8787";
+const DEMO_SNAP_OPTIONS: CanvasSnapOptions = {
+  enabled: true,
+  grid: { enabled: true, size: 24 },
+  alignment: { enabled: true, targets: ["edge", "center"] },
+  showGuides: true,
+  thresholdPx: 8
+};
 
 function isEditableTarget(target: EventTarget | null) {
   if (!(target instanceof HTMLElement)) return false;
@@ -590,6 +598,7 @@ This node was created through the same operation API an AI agent can call.
         initialViewport={viewport}
         renderers={demoRenderers}
         selectedNodeIds={selection}
+        snap={DEMO_SNAP_OPTIONS}
         onDocumentChange={(nextDocument) => setDocument(nextDocument)}
         onSelectionChange={setSelection}
         onViewportChange={handleViewportChange}

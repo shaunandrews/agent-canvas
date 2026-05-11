@@ -20,6 +20,8 @@
   --ac-tooltip-bg: oklch(0.22 0.007 255 / 0.94);
   --ac-tooltip-ink: white;
   --ac-group-stripe: oklch(0.91 0.01 188);
+  --ac-snap-guide: oklch(0.55 0.08 188 / 0.78);
+  --ac-resize-bg: oklch(0.995 0.003 255);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -44,6 +46,8 @@
     --ac-tooltip-bg: oklch(0.92 0.004 255 / 0.94);
     --ac-tooltip-ink: oklch(0.18 0.006 255);
     --ac-group-stripe: oklch(0.43 0.04 188);
+    --ac-snap-guide: oklch(0.76 0.08 188 / 0.78);
+    --ac-resize-bg: oklch(0.24 0.007 255);
   }
 }
 
@@ -68,6 +72,8 @@
   --ac-tooltip-bg: oklch(0.22 0.007 255 / 0.94);
   --ac-tooltip-ink: white;
   --ac-group-stripe: oklch(0.91 0.01 188);
+  --ac-snap-guide: oklch(0.55 0.08 188 / 0.78);
+  --ac-resize-bg: oklch(0.995 0.003 255);
 }
 
 .ac-theme-dark {
@@ -91,6 +97,8 @@
   --ac-tooltip-bg: oklch(0.92 0.004 255 / 0.94);
   --ac-tooltip-ink: oklch(0.18 0.006 255);
   --ac-group-stripe: oklch(0.43 0.04 188);
+  --ac-snap-guide: oklch(0.76 0.08 188 / 0.78);
+  --ac-resize-bg: oklch(0.24 0.007 255);
 }
 
 .ac-shell,
@@ -151,9 +159,14 @@
 
 .ac-node.is-selected {
   border-color: var(--ac-accent);
+  cursor: grab;
   box-shadow:
     0 0 0 3px var(--ac-accent-soft),
     0 12px 32px oklch(0.3 0.006 255 / 0.09);
+}
+
+.ac-node.is-selected:active {
+  cursor: grabbing;
 }
 
 .ac-node.is-locked {
@@ -163,6 +176,73 @@
 .ac-node:focus-visible {
   outline: 2px solid var(--ac-accent);
   outline-offset: 3px;
+}
+
+.ac-resize-handle {
+  background: var(--ac-resize-bg);
+  border: 1px solid var(--ac-accent);
+  border-radius: 999px;
+  box-shadow:
+    0 0 0 2px var(--ac-accent-soft),
+    0 4px 12px oklch(0.3 0.006 255 / 0.16);
+  height: 10px;
+  margin: 0;
+  padding: 0;
+  position: absolute;
+  width: 10px;
+  z-index: 3;
+}
+
+.ac-resize-handle::after {
+  content: "";
+  inset: -8px;
+  position: absolute;
+}
+
+.ac-resize-handle--nw {
+  cursor: nwse-resize;
+  left: 5px;
+  top: 5px;
+}
+
+.ac-resize-handle--ne {
+  cursor: nesw-resize;
+  right: 5px;
+  top: 5px;
+}
+
+.ac-resize-handle--sw {
+  bottom: 5px;
+  cursor: nesw-resize;
+  left: 5px;
+}
+
+.ac-resize-handle--se {
+  bottom: 5px;
+  cursor: nwse-resize;
+  right: 5px;
+}
+
+.ac-resize-handle:hover,
+.ac-resize-handle:focus-visible {
+  background: var(--ac-accent);
+  outline: 0;
+}
+
+.ac-snap-guide {
+  background: var(--ac-snap-guide);
+  box-shadow: 0 0 0 1px oklch(1 0 0 / 0.38);
+  pointer-events: none;
+  position: absolute;
+  z-index: 9999;
+}
+
+.ac-snap-guide--vertical {
+  width: 1px;
+}
+
+.ac-snap-guide--horizontal {
+  height: 1px;
 }
 
 .ac-node-content {
