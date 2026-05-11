@@ -62,7 +62,9 @@ The pure helpers in `src/lib/core` can also run on a server before broadcasting 
 
 ## Interaction Options
 
-Dragging an unselected node pans the canvas. Click a node first to select it, then drag the selected node to move it. A single selected, unlocked, non-group node also shows corner resize handles.
+Dragging an unselected node pans the canvas. Click a node first to select it, then drag the selected node to move it. A single selected, unlocked node shows corner resize handles.
+
+Website preview iframes are inert until their node is selected, so canvas pan and wheel zoom still work when the cursor is over an embedded design. Select the website node before interacting with the preview itself.
 
 Snapping is opt-in for package consumers:
 
@@ -74,7 +76,7 @@ Snapping is opt-in for package consumers:
     thresholdPx: 8,
     showGuides: true,
     grid: { enabled: true, size: 24 },
-    alignment: { enabled: true, targets: ["edge", "center"], includeGroups: false }
+    alignment: { enabled: true, targets: ["edge", "center"], includeSections: true }
   }}
   resize={{
     enabled: true,
@@ -86,6 +88,31 @@ Snapping is opt-in for package consumers:
 ```
 
 Snapping and resizing do not change the document schema. Drag and resize interactions commit standard `updateNode` changes to `x`, `y`, `width`, and `height`, so agents and host apps can use the same operation API.
+
+## Sections
+
+Use `section` nodes to organize the canvas. A section is a real node with its own position, size, renderer, selection, z-order, and resize handles. Child membership is stored on each child as `parentId`; there is no separate `children` list to keep synchronized.
+
+```json
+{
+  "type": "createSection",
+  "section": {
+    "id": "design-section",
+    "type": "section",
+    "x": 80,
+    "y": 80,
+    "width": 1200,
+    "height": 760,
+    "content": { "label": "Design screens" }
+  }
+}
+```
+
+```json
+{ "type": "setNodeParent", "id": "home-screen", "parentId": "design-section" }
+```
+
+Nodes inside a section keep local `x` and `y` coordinates relative to the section. Moving a section moves its children. `layoutSection` lays out direct children using local section coordinates. `getAgentContext()` includes `sections` with bounds, child ids, visible child ids, and child counts so agents can target sections without scanning the full document.
 
 ### Local Control API
 
@@ -138,7 +165,7 @@ args = ["-y", "-p", "@agent-canvas/react", "agent-canvas-mcp"]
 env = { AGENT_CANVAS_CONTROL_URL = "http://127.0.0.1:8787" }
 ```
 
-The MCP server exposes tools for reading context, creating nodes, updating nodes, streaming document content, focusing nodes, and applying layouts. See [docs/MCP.md](./docs/MCP.md) for setup details and the full tool list.
+The MCP server exposes tools for reading context, creating nodes and sections, updating nodes, streaming document content, reparenting nodes, focusing nodes, and applying layouts. See [docs/MCP.md](./docs/MCP.md) for setup details and the full tool list.
 
 ## Integrating Into Another App
 
@@ -176,10 +203,11 @@ Use the native Agent Canvas document shape in the host app. Avoid long-lived ada
    - `POST /api/nodes`
    - `PATCH /api/nodes/:id`
    - `DELETE /api/nodes/:id`
-   - `POST /api/operations` with `createNode`, `updateNode`, `deleteNode`, `bringToFront`, `sendToBack`, `select`, `focus`, and `setViewport`
+   - `POST /api/operations` with `createNode`, `createSection`, `updateNode`, `deleteNode`, `setNodeParent`, `layoutSection`, `bringToFront`, `sendToBack`, `select`, `focus`, and `setViewport`
 
 6. Give agents these rules:
-   - Use native node types: `document`, `text`, `image`, `video`, `website`, `file`, `group`.
+   - Use native node types: `document`, `text`, `image`, `video`, `website`, `file`, `section`.
+   - Put nodes inside sections with `parentId`; do not maintain a separate child list.
    - Put app-specific details in `metadata`, not in custom top-level fields.
    - Use custom React renderers for app-specific presentation while keeping the data schema portable.
    - Call `getAgentContext()` before deciding what to change.

@@ -4,8 +4,8 @@ import type {
   CanvasNode,
   DocumentCanvasNode,
   FileCanvasNode,
-  GroupCanvasNode,
   ImageCanvasNode,
+  SectionCanvasNode,
   TextCanvasNode,
   VideoCanvasNode,
   WebsiteCanvasNode
@@ -19,7 +19,7 @@ export const defaultRenderers: Record<CanvasNode["type"], AgentCanvasRenderer> =
   video: VideoNodeRenderer as AgentCanvasRenderer,
   website: WebsiteNodeRenderer as AgentCanvasRenderer,
   file: FileNodeRenderer as AgentCanvasRenderer,
-  group: GroupNodeRenderer as AgentCanvasRenderer
+  section: SectionNodeRenderer as AgentCanvasRenderer
 };
 
 function DocumentNodeRenderer({ node }: AgentCanvasRendererProps<DocumentCanvasNode>) {
@@ -68,7 +68,7 @@ function VideoNodeRenderer({ node }: AgentCanvasRendererProps<VideoCanvasNode>) 
   );
 }
 
-function WebsiteNodeRenderer({ node }: AgentCanvasRendererProps<WebsiteCanvasNode>) {
+function WebsiteNodeRenderer({ node, selected }: AgentCanvasRendererProps<WebsiteCanvasNode>) {
   const sandbox = node.content.sandbox || "allow-forms allow-popups allow-scripts allow-same-origin";
 
   return (
@@ -79,6 +79,7 @@ function WebsiteNodeRenderer({ node }: AgentCanvasRendererProps<WebsiteCanvasNod
         src={node.content.url}
         srcDoc={node.content.srcDoc}
         sandbox={sandbox}
+        style={{ pointerEvents: selected ? "auto" : "none" }}
       />
       {node.content.caption && <p>{node.content.caption}</p>}
     </article>
@@ -99,13 +100,13 @@ function FileNodeRenderer({ node }: AgentCanvasRendererProps<FileCanvasNode>) {
   );
 }
 
-function GroupNodeRenderer({ node }: AgentCanvasRendererProps<GroupCanvasNode>) {
-  const count = node.content.children?.length || 0;
+function SectionNodeRenderer({ node }: AgentCanvasRendererProps<SectionCanvasNode>) {
   return (
-    <article className="ac-node-content ac-group-node">
-      <NodeHeader node={node} label="Group" />
-      <p>{node.content.label || node.description || "A spatial group for related canvas nodes."}</p>
-      <span>{count} linked node{count === 1 ? "" : "s"}</span>
+    <article className="ac-node-content ac-section-node">
+      <NodeHeader node={node} label="Section" />
+      {(node.content.label || node.content.description || node.description) && (
+        <p>{node.content.label || node.content.description || node.description}</p>
+      )}
     </article>
   );
 }

@@ -12,7 +12,8 @@ import {
 import { AlignHorizontalSpaceBetween, Crosshair, LayoutGrid, LocateFixed, MousePointer2, ZoomIn, ZoomOut } from "lucide-react";
 import { createAgentCanvasContext } from "../core/agent-context";
 import { applyCanvasOperations } from "../core/operations";
-import { fitRectInViewport, getNodesBounds, nodeToRect, rectsIntersect, viewportToCanvasRect, clampScale } from "../core/geometry";
+import { fitRectInViewport, rectsIntersect, viewportToCanvasRect, clampScale } from "../core/geometry";
+import { getDescendantIds, getNodePageRect, getNodesPageBounds, getTopLevelNodeIds, toParentPoint } from "../core/hierarchy";
 import { snapCanvasRect } from "../core/snapping";
 import { sortNodes } from "../core/document";
 import type {
@@ -47,6 +48,7 @@ type DragState =
       startX: number;
       startY: number;
       nodeIds: string[];
+      excludedNodeIds: string[];
       origins: Record<string, { x: number; y: number }>;
       startBounds: CanvasRect;
     }
@@ -171,7 +173,7 @@ export const AgentCanvas = forwardRef<AgentCanvasHandle, AgentCanvasProps>(funct
   const getVisibleNodeIds = useCallback(() => {
     const { width, height } = screenSizeRef.current;
     const rect = viewportToCanvasRect(viewportRef.current, width, height);
-    return documentRef.current.nodes.filter((node) => rectsIntersect(nodeToRect(node), rect)).map((node) => node.id);
+    return documentRef.current.nodes.filter((node) => rectsIntersect(getNodePageRect(documentRef.current, node), rect)).map((node) => node.id);
   }, []);
 
   const getSnapshot = useCallback<AgentCanvasHandle["getSnapshot"]>(
@@ -194,13 +196,13 @@ export const AgentCanvas = forwardRef<AgentCanvasHandle, AgentCanvasProps>(funct
       const node = documentRef.current.nodes.find((item) => item.id === id);
       if (!node) return;
       setSelection([id]);
-      setViewport(fitRectInViewport(nodeToRect(node), screenSizeRef.current.width, screenSizeRef.current.height, 96));
+      setViewport(fitRectInViewport(getNodePageRect(documentRef.current, node), screenSizeRef.current.width, screenSizeRef.current.height, 96));
     },
     [setSelection, setViewport]
   );
 
   const fitView = useCallback<AgentCanvasHandle["fitView"]>(() => {
-    const bounds = getNodesBounds(documentRef.current.nodes);
+    const bounds = getNodesPageBounds(documentRef.current, documentRef.current.nodes);
     setViewport(fitRectInViewport(bounds, screenSizeRef.current.width, screenSizeRef.current.height, 80));
   }, [setViewport]);
 
@@ -318,22 +320,29 @@ export const AgentCanvas = forwardRef<AgentCanvasHandle, AgentCanvasProps>(funct
 
     if (readonly || node.locked) return;
 
+    const nodeIds = getTopLevelNodeIds(canvasDocument, currentSelection);
     const origins = Object.fromEntries(
-      currentSelection
+      nodeIds
         .map((id) => canvasDocument.nodes.find((item) => item.id === id))
-        .filter(Boolean)
-        .map((item) => [item!.id, { x: item!.x, y: item!.y }])
+        .filter((item) => item && !item.locked)
+        .map((item) => {
+          const rect = getNodePageRect(canvasDocument, item!);
+          return [item!.id, { x: rect.x, y: rect.y }];
+        })
     );
-    const draggedNodes = canvasDocument.nodes.filter((item) => currentSelection.includes(item.id));
+    const draggedNodes = canvasDocument.nodes.filter((item) => item.id in origins);
+    if (!draggedNodes.length) return;
+    const excludedNodeIds = [...new Set(draggedNodes.flatMap((item) => [item.id, ...getDescendantIds(canvasDocument, item.id)]))];
 
     dragRef.current = {
       mode: "node",
       pointerId: event.pointerId,
       startX: event.clientX,
       startY: event.clientY,
-      nodeIds: currentSelection,
+      nodeIds: draggedNodes.map((item) => item.id),
+      excludedNodeIds,
       origins,
-      startBounds: getNodesBounds(draggedNodes)
+      startBounds: getNodesPageBounds(canvasDocument, draggedNodes)
     };
     event.currentTarget.setPointerCapture(event.pointerId);
   }
@@ -351,7 +360,7 @@ export const AgentCanvas = forwardRef<AgentCanvasHandle, AgentCanvasProps>(funct
       startY: event.clientY,
       nodeId: node.id,
       handle,
-      startRect: nodeToRect(node),
+      startRect: getNodePageRect(documentRef.current, node),
       minWidth: minSize.minWidth,
       minHeight: minSize.minHeight
     };
@@ -411,7 +420,11 @@ export const AgentCanvas = forwardRef<AgentCanvasHandle, AgentCanvasProps>(funct
       setCanvasDocument((current) => {
         const next = {
           ...current,
-          nodes: current.nodes.map((node) => (node.id === drag.nodeId ? ({ ...node, ...snapResult.rect } as typeof node) : node))
+          nodes: current.nodes.map((node) => {
+            if (node.id !== drag.nodeId) return node;
+            const point = toParentPoint(current, node.parentId, snapResult.rect);
+            return { ...node, x: point.x, y: point.y, width: snapResult.rect.width, height: snapResult.rect.height } as typeof node;
+          })
         };
         documentRef.current = next;
         return next;
@@ -423,7 +436,7 @@ export const AgentCanvas = forwardRef<AgentCanvasHandle, AgentCanvasProps>(funct
     const snapResult = snapCanvasRect({
       document: documentRef.current,
       rect: proposedBounds,
-      movingNodeIds: drag.nodeIds,
+      movingNodeIds: drag.excludedNodeIds,
       options: snap,
       viewportScale: viewportRef.current.scale,
       mode: "move"
@@ -437,7 +450,9 @@ export const AgentCanvas = forwardRef<AgentCanvasHandle, AgentCanvasProps>(funct
         ...current,
         nodes: current.nodes.map((node) => {
           const origin = drag.origins[node.id];
-          return origin ? { ...node, x: origin.x + snappedDx, y: origin.y + snappedDy } : node;
+          if (!origin) return node;
+          const point = toParentPoint(current, node.parentId, { x: origin.x + snappedDx, y: origin.y + snappedDy });
+          return { ...node, x: point.x, y: point.y };
         })
       };
       documentRef.current = next;
@@ -467,7 +482,10 @@ export const AgentCanvas = forwardRef<AgentCanvasHandle, AgentCanvasProps>(funct
   const visibleNodeIds = useMemo(() => getVisibleNodeIds(), [canvasDocument, getVisibleNodeIds, screenSize, viewport]);
   const sortedNodes = useMemo(() => sortNodes(canvasDocument.nodes), [canvasDocument.nodes]);
   const layoutTargetIds = useMemo(
-    () => (currentSelection.length > 1 ? currentSelection : canvasDocument.nodes.filter((node) => node.type !== "group").map((node) => node.id)),
+    () =>
+      currentSelection.length > 1
+        ? getTopLevelNodeIds(canvasDocument, currentSelection)
+        : canvasDocument.nodes.filter((node) => node.type !== "section").map((node) => node.id),
     [canvasDocument.nodes, currentSelection]
   );
   const context: AgentCanvasContext = useMemo(
@@ -512,6 +530,7 @@ export const AgentCanvas = forwardRef<AgentCanvasHandle, AgentCanvasProps>(funct
           const Renderer = mergedRenderers[node.type];
           const selected = currentSelection.includes(node.id);
           const showResizeHandles = canResizeNode(node, currentSelection, resizeOptions);
+          const rect = getNodePageRect(canvasDocument, node);
           return (
             <article
               aria-label={getNodeAccessibleLabel(node)}
@@ -522,10 +541,10 @@ export const AgentCanvas = forwardRef<AgentCanvasHandle, AgentCanvasProps>(funct
               onPointerDown={(event) => handleNodePointerDown(event, node)}
               role="button"
               style={{
-                left: node.x,
-                top: node.y,
-                width: node.width,
-                height: node.height,
+                left: rect.x,
+                top: rect.y,
+                width: rect.width,
+                height: rect.height,
                 zIndex: node.zIndex
               }}
               tabIndex={0}
@@ -624,7 +643,7 @@ const NODE_MIN_SIZE: Record<CanvasNode["type"], { minWidth: number; minHeight: n
   video: { minWidth: 160, minHeight: 120 },
   website: { minWidth: 240, minHeight: 160 },
   file: { minWidth: 220, minHeight: 140 },
-  group: { minWidth: 160, minHeight: 120 }
+  section: { minWidth: 260, minHeight: 180 }
 };
 
 function resolveResizeOptions(resize: CanvasResizeOptions | false): NormalizedResizeOptions {
@@ -639,7 +658,7 @@ function resolveResizeOptions(resize: CanvasResizeOptions | false): NormalizedRe
 }
 
 function canResizeNode(node: CanvasNode, selection: string[], resizeOptions: NormalizedResizeOptions) {
-  return resizeOptions.enabled && selection.length === 1 && selection[0] === node.id && !node.locked && node.type !== "group";
+  return resizeOptions.enabled && selection.length === 1 && selection[0] === node.id && !node.locked;
 }
 
 function getNodeMinSize(node: CanvasNode, resizeOptions: NormalizedResizeOptions) {

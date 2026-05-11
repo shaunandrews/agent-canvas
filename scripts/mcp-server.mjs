@@ -56,6 +56,19 @@ const tools = [
     }, ["markdown"])
   },
   {
+    name: "agent_canvas_create_section",
+    title: "Create Section",
+    description: "Create a section container that other nodes can be parented into.",
+    inputSchema: nodeCreationSchema(
+      {
+        label: { type: "string", description: "Visible section label." },
+        description: { type: "string", description: "Short section description for agents and users." },
+        clip: { type: "boolean", description: "Whether consumers should clip section children." }
+      },
+      []
+    )
+  },
+  {
     name: "agent_canvas_update_node",
     title: "Update Node",
     description: "Patch an existing canvas node by id.",
@@ -67,6 +80,21 @@ const tools = [
         detail: { type: "string", description: "Detailed operation log message." }
       },
       ["id", "patch"]
+    )
+  },
+  {
+    name: "agent_canvas_set_node_parent",
+    title: "Set Node Parent",
+    description: "Move a node into or out of a section while optionally preserving its page position.",
+    inputSchema: objectSchema(
+      {
+        id: { type: "string", description: "Node id to reparent." },
+        parentId: { type: "string", description: "Section id to parent into. Omit to move to the root canvas." },
+        preservePagePosition: { type: "boolean", description: "Keep the node visually in place while changing parent. Defaults to true." },
+        label: { type: "string", description: "Short label shown in the demo operation log." },
+        detail: { type: "string", description: "Detailed operation log message." }
+      },
+      ["id"]
     )
   },
   {
@@ -104,6 +132,26 @@ const tools = [
         tidy: { type: "boolean", description: "Use tidyNodes instead of layoutNodes." }
       },
       ["ids", "mode"]
+    )
+  },
+  {
+    name: "agent_canvas_layout_section",
+    title: "Layout Section",
+    description: "Lay out the direct child nodes inside a section.",
+    inputSchema: objectSchema(
+      {
+        id: { type: "string", description: "Section id." },
+        mode: { type: "string", enum: ["row", "column", "list", "grid"], description: "Layout mode." },
+        gap: { type: "number", description: "Gap between child nodes in canvas units." },
+        columns: { type: "number", description: "Grid column count." },
+        origin: {
+          type: "object",
+          properties: { x: { type: "number" }, y: { type: "number" } },
+          additionalProperties: false,
+          description: "Optional origin relative to the section."
+        }
+      },
+      ["id", "mode"]
     )
   },
   {
@@ -252,7 +300,7 @@ function initialize(params) {
       version: SERVER_VERSION
     },
     instructions:
-      "Use Agent Canvas tools to read the current canvas context and apply typed CanvasOperation records. Start the browser control bridge with `agent-canvas-control` or `npm run control` before calling write tools."
+      "Use Agent Canvas tools to read the current canvas context and apply typed CanvasOperation records. Sections are node containers: create them with agent_canvas_create_section, then set node parentId values with agent_canvas_set_node_parent. Start the browser control bridge with `agent-canvas-control` or `npm run control` before calling write tools."
   };
 }
 
@@ -267,9 +315,12 @@ async function callTool(params) {
     if (name === "agent_canvas_apply_operations") return toolResult(await applyOperations(args.operations, args));
     if (name === "agent_canvas_create_text_node") return toolResult(await createTextNode(args));
     if (name === "agent_canvas_create_document_node") return toolResult(await createDocumentNode(args));
+    if (name === "agent_canvas_create_section") return toolResult(await createSection(args));
     if (name === "agent_canvas_update_node") return toolResult(await updateNode(args));
+    if (name === "agent_canvas_set_node_parent") return toolResult(await setNodeParent(args));
     if (name === "agent_canvas_stream_document") return toolResult(await streamDocument(args));
     if (name === "agent_canvas_layout_nodes") return toolResult(await layoutNodes(args));
+    if (name === "agent_canvas_layout_section") return toolResult(await layoutSection(args));
     if (name === "agent_canvas_focus_node") return toolResult(await applyOperations([{ type: "focus", id: readString(args, "id") }], { label: "Focus node" }));
     if (name === "agent_canvas_watch_operations") return toolResult(await watchOperations(args));
 
@@ -363,6 +414,7 @@ async function createTextNode(args) {
     y: readNumber(args, "y", 160),
     width: readNumber(args, "width", 360),
     height: readNumber(args, "height", 180),
+    ...(typeof args.parentId === "string" ? { parentId: args.parentId } : {}),
     title: args.title || "Agent note",
     tags: ["agent-created", ...(Array.isArray(args.tags) ? args.tags.filter((tag) => typeof tag === "string") : [])],
     content: {
@@ -388,6 +440,7 @@ async function createDocumentNode(args) {
     y: readNumber(args, "y", 160),
     width: readNumber(args, "width", 460),
     height: readNumber(args, "height", 320),
+    ...(typeof args.parentId === "string" ? { parentId: args.parentId } : {}),
     title: args.title || "Agent document",
     tags: ["agent-created", ...(Array.isArray(args.tags) ? args.tags.filter((tag) => typeof tag === "string") : [])],
     metadata: status ? streamMetadata(status, progress, args.streamLabel) : undefined,
@@ -400,11 +453,68 @@ async function createDocumentNode(args) {
   });
 }
 
+async function createSection(args) {
+  const id = args.id || `agent-section-${Date.now()}`;
+  const label = args.label || args.title || "Agent section";
+  const section = {
+    id,
+    type: "section",
+    x: readNumber(args, "x", 120),
+    y: readNumber(args, "y", 120),
+    width: readNumber(args, "width", 960),
+    height: readNumber(args, "height", 640),
+    ...(typeof args.parentId === "string" ? { parentId: args.parentId } : {}),
+    title: args.title || label,
+    description: typeof args.description === "string" ? args.description : undefined,
+    tags: ["agent-created", "section", ...(Array.isArray(args.tags) ? args.tags.filter((tag) => typeof tag === "string") : [])],
+    content: {
+      label,
+      ...(typeof args.description === "string" ? { description: args.description } : {}),
+      ...(typeof args.clip === "boolean" ? { clip: args.clip } : {})
+    }
+  };
+
+  return applyOperations(
+    [
+      {
+        type: "createSection",
+        section,
+        placement: args.placement || { mode: "avoid-overlap", gap: 32, gridSize: 24 }
+      },
+      ...(args.focus ? [{ type: "focus", id }] : []),
+      ...(args.select ? [{ type: "select", ids: [id] }] : [])
+    ],
+    {
+      label: args.label || "Create section",
+      detail: args.detail || `Created ${id} section through MCP.`
+    }
+  );
+}
+
 async function updateNode(args) {
   return applyOperations([{ type: "updateNode", id: readString(args, "id"), patch: readObject(args, "patch") }], {
     label: args.label || "Update node",
     detail: args.detail || `Updated ${args.id} through MCP.`
   });
+}
+
+async function setNodeParent(args) {
+  const id = readString(args, "id");
+  const parentId = typeof args.parentId === "string" && args.parentId ? args.parentId : undefined;
+  return applyOperations(
+    [
+      {
+        type: "setNodeParent",
+        id,
+        ...(parentId ? { parentId } : {}),
+        preservePagePosition: args.preservePagePosition !== false
+      }
+    ],
+    {
+      label: args.label || "Set node parent",
+      detail: args.detail || `${parentId ? `Moved ${id} into ${parentId}` : `Moved ${id} to the root canvas`}.`
+    }
+  );
 }
 
 async function streamDocument(args) {
@@ -425,6 +535,7 @@ async function streamDocument(args) {
           id,
           patch: {
             ...(args.title ? { title: args.title } : {}),
+            ...(typeof args.parentId === "string" ? { parentId: args.parentId } : {}),
             metadata,
             content: { markdown }
           }
@@ -471,6 +582,28 @@ async function layoutNodes(args) {
     {
       label: "Layout nodes",
       detail: `Applied ${args.mode} layout to ${ids.length} node${ids.length === 1 ? "" : "s"}.`
+    }
+  );
+}
+
+async function layoutSection(args) {
+  const id = readString(args, "id");
+  return applyOperations(
+    [
+      {
+        type: "layoutSection",
+        id,
+        layout: {
+          mode: readString(args, "mode"),
+          ...(typeof args.gap === "number" ? { gap: args.gap } : {}),
+          ...(typeof args.columns === "number" ? { columns: args.columns } : {}),
+          ...(args.origin && typeof args.origin === "object" && !Array.isArray(args.origin) ? { origin: args.origin } : {})
+        }
+      }
+    ],
+    {
+      label: "Layout section",
+      detail: `Applied ${args.mode} layout inside ${id}.`
     }
   );
 }
@@ -655,6 +788,7 @@ function nodeCreationSchema(extraProperties, required = []) {
       y: { type: "number", description: "Preferred y position." },
       width: { type: "number", description: "Node width." },
       height: { type: "number", description: "Node height." },
+      parentId: { type: "string", description: "Optional parent section id." },
       tags: { type: "array", items: { type: "string" }, description: "Additional node tags." },
       placement: placementSchema(),
       focus: { type: "boolean", description: "Focus the node after creation." },

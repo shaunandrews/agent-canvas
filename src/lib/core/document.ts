@@ -17,7 +17,13 @@ export function createCanvasDocument(input: Partial<CanvasDocument> & { nodes?: 
 }
 
 export function sortNodes(nodes: CanvasNode[]): CanvasNode[] {
-  return [...nodes].sort((a, b) => (a.zIndex ?? 0) - (b.zIndex ?? 0));
+  return [...nodes].sort((a, b) => {
+    const zOrder = (a.zIndex ?? 0) - (b.zIndex ?? 0);
+    if (zOrder !== 0) return zOrder;
+    if (a.type === "section" && b.type !== "section") return -1;
+    if (a.type !== "section" && b.type === "section") return 1;
+    return a.id.localeCompare(b.id);
+  });
 }
 
 export function normalizeNodes(nodes: CanvasNode[]): CanvasNode[] {

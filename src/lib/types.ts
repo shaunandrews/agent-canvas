@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 
-export type CanvasNodeType = "document" | "text" | "image" | "video" | "website" | "file" | "group";
+export type CanvasNodeType = "document" | "text" | "image" | "video" | "website" | "file" | "section";
 
 export interface CanvasDocument {
   schemaVersion: 1;
@@ -20,6 +20,7 @@ export interface CanvasNodeBase {
   y: number;
   width: number;
   height: number;
+  parentId?: string;
   title?: string;
   description?: string;
   locked?: boolean;
@@ -84,11 +85,12 @@ export interface FileCanvasNode extends CanvasNodeBase {
   };
 }
 
-export interface GroupCanvasNode extends CanvasNodeBase {
-  type: "group";
+export interface SectionCanvasNode extends CanvasNodeBase {
+  type: "section";
   content: {
-    children?: string[];
     label?: string;
+    description?: string;
+    clip?: boolean;
   };
 }
 
@@ -99,7 +101,7 @@ export type CanvasNode =
   | VideoCanvasNode
   | WebsiteCanvasNode
   | FileCanvasNode
-  | GroupCanvasNode;
+  | SectionCanvasNode;
 
 export interface CanvasEdge {
   id: string;
@@ -132,7 +134,7 @@ export interface CanvasGridSnapOptions {
 export interface CanvasAlignmentSnapOptions {
   enabled?: boolean;
   targets?: CanvasSnapTarget[];
-  includeGroups?: boolean;
+  includeSections?: boolean;
 }
 
 export interface CanvasSnapOptions {
@@ -192,11 +194,14 @@ export interface CanvasLayoutOptions {
 
 export type CanvasOperation =
   | { type: "createNode"; node: CanvasNode; placement?: CanvasPlacementPolicy }
+  | { type: "createSection"; section: SectionCanvasNode; placement?: CanvasPlacementPolicy }
   | { type: "updateNode"; id: string; patch: Partial<CanvasNode> }
   | { type: "deleteNode"; id: string }
+  | { type: "setNodeParent"; id: string; parentId?: string; preservePagePosition?: boolean }
   | { type: "bringToFront"; id: string }
   | { type: "sendToBack"; id: string }
   | { type: "layoutNodes"; ids: string[]; layout: CanvasLayoutOptions }
+  | { type: "layoutSection"; id: string; layout: CanvasLayoutOptions }
   | { type: "tidyNodes"; ids: string[]; layout?: CanvasLayoutOptions }
   | { type: "select"; ids: string[] }
   | { type: "focus"; id: string }
@@ -222,15 +227,28 @@ export interface AgentCanvasContext {
     title: string;
     viewport: CanvasViewport;
   };
+  sections: AgentCanvasSectionSummary[];
   selected: AgentCanvasNodeSummary[];
   visible: AgentCanvasNodeSummary[];
   offscreenCount: number;
+}
+
+export interface AgentCanvasSectionSummary {
+  id: string;
+  title?: string;
+  label?: string;
+  description?: string;
+  bounds: CanvasRect;
+  childNodeIds: string[];
+  visibleChildNodeIds: string[];
+  childCount: number;
 }
 
 export interface AgentCanvasNodeSummary {
   id: string;
   type: CanvasNodeType;
   title?: string;
+  parentId?: string;
   bounds: CanvasRect;
   text?: string;
   tags?: string[];

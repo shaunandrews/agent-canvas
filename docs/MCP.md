@@ -108,9 +108,12 @@ The MCP server exposes these tools:
 - `agent_canvas_apply_operations`: apply raw `CanvasOperation[]`.
 - `agent_canvas_create_text_node`: create a text node.
 - `agent_canvas_create_document_node`: create a markdown document node.
+- `agent_canvas_create_section`: create a section container.
 - `agent_canvas_update_node`: patch a node.
+- `agent_canvas_set_node_parent`: move a node into or out of a section.
 - `agent_canvas_stream_document`: create or update a document node while marking it editing or complete.
 - `agent_canvas_layout_nodes`: lay out or tidy nodes as row, column, list, or grid.
+- `agent_canvas_layout_section`: lay out the direct child nodes inside a section.
 - `agent_canvas_focus_node`: select and focus a node.
 - `agent_canvas_watch_operations`: wait for the next control-stream operation.
 
@@ -144,6 +147,10 @@ Create a document node called "Launch Plan", stream the first draft into it, the
 
 ```text
 Lay out the generated nodes as a tidy grid.
+```
+
+```text
+Create a section called "Design Screens", move the Home and Fam Wall nodes into it, then lay out that section as a row.
 ```
 
 ## Security Notes

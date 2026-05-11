@@ -1,5 +1,15 @@
-import type { CanvasDocument, CanvasNode, CanvasOperation, CanvasOperationResult, CanvasViewport } from "../types";
+import type { CanvasDocument, CanvasNode, CanvasOperation, CanvasOperationResult, CanvasPlacementPolicy, CanvasViewport } from "../types";
 import { sortNodes } from "./document";
+import {
+  findCanvasNode,
+  getDescendantIds,
+  getNodePagePosition,
+  getSectionChildren,
+  isSectionNode,
+  toPagePoint,
+  toParentPoint,
+  wouldCreateParentCycle
+} from "./hierarchy";
 import { layoutCanvasNodes, placeCanvasNode, tidyCanvasNodes } from "./layout";
 
 export interface ApplyCanvasOperationsState {
@@ -24,36 +34,63 @@ export function applyCanvasOperations(
   for (const operation of operations) {
     try {
       if (operation.type === "createNode") {
-        ensureUniqueNodeId(document, operation.node.id);
-        const node = operation.placement ? placeCanvasNode(document, operation.node, operation.placement, selectedNodeIds) : operation.node;
-        document = {
-          ...document,
-          nodes: sortNodes([...document.nodes, { ...node, zIndex: node.zIndex ?? nextZIndex(document) }])
-        };
+        const node = createNode(document, operation.node, operation.placement, selectedNodeIds);
+        document = { ...document, nodes: sortNodes([...document.nodes, node]) };
         results.push({ operation: operation.type, ok: true, id: node.id });
         continue;
       }
 
+      if (operation.type === "createSection") {
+        const section = createNode(document, operation.section, operation.placement, selectedNodeIds);
+        document = { ...document, nodes: sortNodes([...document.nodes, section]) };
+        results.push({ operation: operation.type, ok: true, id: section.id });
+        continue;
+      }
+
       if (operation.type === "updateNode") {
+        const currentNode = ensureNodeExists(document, operation.id);
+        if ("parentId" in operation.patch) {
+          ensureValidParent(document, currentNode.id, operation.patch.parentId);
+        }
         document = {
           ...document,
           nodes: sortNodes(
             document.nodes.map((node) => (node.id === operation.id ? ({ ...node, ...operation.patch, id: node.id } as typeof node) : node))
           )
         };
-        ensureNodeExists(document, operation.id);
         results.push({ operation: operation.type, ok: true, id: operation.id });
         continue;
       }
 
       if (operation.type === "deleteNode") {
         ensureNodeExists(document, operation.id);
+        const deletedIds = new Set([operation.id, ...getDescendantIds(document, operation.id)]);
         document = {
           ...document,
-          nodes: document.nodes.filter((node) => node.id !== operation.id),
-          edges: document.edges?.filter((edge) => edge.from !== operation.id && edge.to !== operation.id)
+          nodes: document.nodes.filter((node) => !deletedIds.has(node.id)),
+          edges: document.edges?.filter((edge) => !deletedIds.has(edge.from) && !deletedIds.has(edge.to))
         };
-        selectedNodeIds = selectedNodeIds.filter((id) => id !== operation.id);
+        selectedNodeIds = selectedNodeIds.filter((id) => !deletedIds.has(id));
+        results.push({ operation: operation.type, ok: true, id: operation.id });
+        continue;
+      }
+
+      if (operation.type === "setNodeParent") {
+        const node = ensureNodeExists(document, operation.id);
+        ensureValidParent(document, operation.id, operation.parentId);
+        const pagePosition = getNodePagePosition(document, node);
+        const localPosition =
+          operation.preservePagePosition === false ? { x: node.x, y: node.y } : toParentPoint(document, operation.parentId, pagePosition);
+        document = {
+          ...document,
+          nodes: sortNodes(
+            document.nodes.map((item) =>
+              item.id === operation.id
+                ? ({ ...item, parentId: operation.parentId, x: localPosition.x, y: localPosition.y } as typeof item)
+                : item
+            )
+          )
+        };
         results.push({ operation: operation.type, ok: true, id: operation.id });
         continue;
       }
@@ -85,6 +122,24 @@ export function applyCanvasOperations(
         const layoutOperations = layoutCanvasNodes(document, operation.ids, operation.layout);
         document = applyUpdateOperationsToDocument(document, layoutOperations);
         results.push({ operation: operation.type, ok: true });
+        continue;
+      }
+
+      if (operation.type === "layoutSection") {
+        const section = ensureNodeExists(document, operation.id);
+        if (!isSectionNode(section)) throw new Error(`Node is not a section: ${operation.id}`);
+        const children = getSectionChildren(document, operation.id);
+        const layout = {
+          ...operation.layout,
+          origin: operation.layout.origin ? toPagePoint(document, section.id, operation.layout.origin) : operation.layout.origin
+        };
+        const layoutOperations = layoutCanvasNodes(
+          document,
+          children.map((node) => node.id),
+          layout
+        );
+        document = applyUpdateOperationsToDocument(document, layoutOperations);
+        results.push({ operation: operation.type, ok: true, id: operation.id });
         continue;
       }
 
@@ -137,12 +192,33 @@ function cloneNode<TNode extends CanvasNode>(node: TNode): TNode {
   return { ...node, content: { ...node.content } } as TNode;
 }
 
+function createNode(
+  document: CanvasDocument,
+  inputNode: CanvasNode,
+  placement: CanvasPlacementPolicy | undefined,
+  selectedNodeIds: string[]
+): CanvasNode {
+  ensureUniqueNodeId(document, inputNode.id);
+  ensureValidParent(document, inputNode.id, inputNode.parentId);
+  const node = placement ? placeCanvasNode(document, inputNode, placement, selectedNodeIds) : inputNode;
+  return { ...node, zIndex: node.zIndex ?? defaultZIndex(document, node) };
+}
+
 function ensureUniqueNodeId(document: CanvasDocument, id: string): void {
   if (document.nodes.some((node) => node.id === id)) throw new Error(`Node already exists: ${id}`);
 }
 
-function ensureNodeExists(document: CanvasDocument, id: string): void {
-  if (!document.nodes.some((node) => node.id === id)) throw new Error(`Node not found: ${id}`);
+function ensureNodeExists(document: CanvasDocument, id: string): CanvasNode {
+  const node = findCanvasNode(document, id);
+  if (!node) throw new Error(`Node not found: ${id}`);
+  return node;
+}
+
+function ensureValidParent(document: CanvasDocument, nodeId: string, parentId: string | undefined): void {
+  if (!parentId) return;
+  const parent = ensureNodeExists(document, parentId);
+  if (!isSectionNode(parent)) throw new Error(`Parent must be a section: ${parentId}`);
+  if (wouldCreateParentCycle(document, nodeId, parentId)) throw new Error(`Cannot parent ${nodeId} to one of its descendants.`);
 }
 
 function applyUpdateOperationsToDocument(document: CanvasDocument, operations: CanvasOperation[]): CanvasDocument {
@@ -164,4 +240,9 @@ function applyUpdateOperationsToDocument(document: CanvasDocument, operations: C
 
 function nextZIndex(document: CanvasDocument): number {
   return Math.max(0, ...document.nodes.map((node) => node.zIndex ?? 0)) + 1;
+}
+
+function defaultZIndex(document: CanvasDocument, node: CanvasNode): number {
+  if (node.type === "section") return 0;
+  return nextZIndex(document);
 }

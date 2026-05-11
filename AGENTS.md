@@ -55,7 +55,9 @@ Use these native types before inventing custom types:
 - `video`: playable media
 - `website`: URL or `srcDoc` preview
 - `file`: artifact handoff records
-- `group`: spatial grouping and labels
+- `section`: spatial containers for related nodes
+
+Put nodes inside sections by setting `parentId` to the section id. Do not maintain separate `children` arrays.
 
 When app-specific rendering is needed, keep the node type native and pass custom renderers through `renderers`.
 

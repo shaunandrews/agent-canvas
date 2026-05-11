@@ -8,7 +8,7 @@ import type {
   CanvasSnapOptions,
   CanvasSnapTarget
 } from "../types";
-import { nodeToRect } from "./geometry";
+import { getNodePageRect } from "./hierarchy";
 
 const DEFAULT_GRID_SIZE = 24;
 const DEFAULT_THRESHOLD_PX = 8;
@@ -118,7 +118,7 @@ function normalizeAlignmentOptions(options?: CanvasAlignmentSnapOptions): Requir
   return {
     enabled: options?.enabled ?? true,
     targets: options?.targets?.length ? options.targets : DEFAULT_ALIGNMENT_TARGETS,
-    includeGroups: options?.includeGroups ?? false
+    includeSections: options?.includeSections ?? true
   };
 }
 
@@ -135,8 +135,8 @@ function getSnapCandidates(
   const y: SnapCandidate[] = [];
 
   for (const node of document.nodes) {
-    if (excludedIds.has(node.id) || (!alignment.includeGroups && node.type === "group")) continue;
-    const rect = nodeToRect(node);
+    if (excludedIds.has(node.id) || (!alignment.includeSections && node.type === "section")) continue;
+    const rect = getNodePageRect(document, node);
     const xRange = { start: rect.y, end: rect.y + rect.height };
     const yRange = { start: rect.x, end: rect.x + rect.width };
 

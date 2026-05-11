@@ -19,7 +19,7 @@
   --ac-glass-hover: rgba(255, 255, 255, 0.46);
   --ac-tooltip-bg: oklch(0.22 0.007 255 / 0.94);
   --ac-tooltip-ink: white;
-  --ac-group-stripe: oklch(0.91 0.01 188);
+  --ac-section-bg: oklch(0.94 0.018 188 / 0.34);
   --ac-snap-guide: oklch(0.55 0.08 188 / 0.78);
   --ac-resize-bg: oklch(0.995 0.003 255);
 }
@@ -45,7 +45,7 @@
     --ac-glass-hover: rgba(255, 255, 255, 0.13);
     --ac-tooltip-bg: oklch(0.92 0.004 255 / 0.94);
     --ac-tooltip-ink: oklch(0.18 0.006 255);
-    --ac-group-stripe: oklch(0.43 0.04 188);
+    --ac-section-bg: oklch(0.34 0.04 188 / 0.3);
     --ac-snap-guide: oklch(0.76 0.08 188 / 0.78);
     --ac-resize-bg: oklch(0.24 0.007 255);
   }
@@ -71,7 +71,7 @@
   --ac-glass-hover: rgba(255, 255, 255, 0.46);
   --ac-tooltip-bg: oklch(0.22 0.007 255 / 0.94);
   --ac-tooltip-ink: white;
-  --ac-group-stripe: oklch(0.91 0.01 188);
+  --ac-section-bg: oklch(0.94 0.018 188 / 0.34);
   --ac-snap-guide: oklch(0.55 0.08 188 / 0.78);
   --ac-resize-bg: oklch(0.995 0.003 255);
 }
@@ -96,7 +96,7 @@
   --ac-glass-hover: rgba(255, 255, 255, 0.13);
   --ac-tooltip-bg: oklch(0.92 0.004 255 / 0.94);
   --ac-tooltip-ink: oklch(0.18 0.006 255);
-  --ac-group-stripe: oklch(0.43 0.04 188);
+  --ac-section-bg: oklch(0.34 0.04 188 / 0.3);
   --ac-snap-guide: oklch(0.76 0.08 188 / 0.78);
   --ac-resize-bg: oklch(0.24 0.007 255);
 }
@@ -155,6 +155,12 @@
   overflow: hidden;
   position: absolute;
   transform: translateZ(0);
+}
+
+.ac-node--section {
+  background: var(--ac-section-bg);
+  border-color: var(--ac-accent);
+  box-shadow: none;
 }
 
 .ac-node.is-selected {
@@ -295,7 +301,7 @@
 .ac-document-body ul,
 .ac-text-node p,
 .ac-file-node p,
-.ac-group-node p,
+.ac-section-node p,
 .ac-website-node p {
   margin: 0;
 }
@@ -414,7 +420,7 @@
 }
 
 .ac-file-node,
-.ac-group-node {
+.ac-section-node {
   gap: 12px;
   padding-bottom: 18px;
 }
@@ -438,8 +444,7 @@
 .ac-file-node > strong,
 .ac-file-node > span,
 .ac-file-node > p,
-.ac-group-node > p,
-.ac-group-node > span {
+.ac-section-node > p {
   margin-left: 18px;
   margin-right: 18px;
 }
@@ -448,8 +453,7 @@
   font-size: 17px;
 }
 
-.ac-file-node > span,
-.ac-group-node > span {
+.ac-file-node > span {
   color: var(--ac-muted);
   font-size: 12px;
   font-weight: 700;
@@ -457,16 +461,14 @@
 }
 
 .ac-file-node > p,
-.ac-group-node > p {
+.ac-section-node > p {
   color: var(--ac-muted);
   font-size: 14px;
   line-height: 1.42;
 }
 
-.ac-group-node {
-  background:
-    linear-gradient(135deg, transparent 0 48%, var(--ac-group-stripe) 48% 52%, transparent 52% 100%),
-    var(--ac-surface);
+.ac-section-node {
+  background: transparent;
 }
 
 .ac-toolbar,

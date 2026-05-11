@@ -43,6 +43,7 @@ function buildPayload(commandName, commandArgs) {
       y: readNumber(options, "y", 160),
       width: readNumber(options, "width", 360),
       height: readNumber(options, "height", 180),
+      ...(getOption(options, "parent-id") ? { parentId: getOption(options, "parent-id") } : {}),
       title,
       tags: readTags(options),
       content: {
@@ -64,6 +65,77 @@ function buildPayload(commandName, commandArgs) {
       label: getOption(options, "label") || "Create text node",
       detail: getOption(options, "detail") || `Created ${id} from the Agent Canvas CLI.`,
       operations
+    };
+  }
+
+  if (commandName === "create-section") {
+    const options = parseOptions(commandArgs);
+    const id = getOption(options, "id") || `agent-section-${Date.now()}`;
+    const label = getOption(options, "section-label") || getOption(options, "title") || "Agent section";
+    const section = {
+      id,
+      type: "section",
+      x: readNumber(options, "x", 120),
+      y: readNumber(options, "y", 120),
+      width: readNumber(options, "width", 960),
+      height: readNumber(options, "height", 640),
+      ...(getOption(options, "parent-id") ? { parentId: getOption(options, "parent-id") } : {}),
+      title: getOption(options, "title") || label,
+      description: getOption(options, "description"),
+      tags: [...new Set([...readTags(options), "section"])],
+      content: {
+        label,
+        ...(getOption(options, "description") ? { description: getOption(options, "description") } : {}),
+        ...(options.has("clip") ? { clip: true } : {})
+      }
+    };
+    const operations = [
+      {
+        type: "createSection",
+        section,
+        placement: readPlacement(options)
+      }
+    ];
+
+    if (options.has("focus")) operations.push({ type: "focus", id });
+    if (options.has("select")) operations.push({ type: "select", ids: [id] });
+
+    return {
+      label: getOption(options, "label") || "Create section",
+      detail: getOption(options, "detail") || `Created ${id} from the Agent Canvas CLI.`,
+      operations
+    };
+  }
+
+  if (commandName === "set-parent") {
+    const [id, parentId] = commandArgs;
+    if (!id) throw new Error("Missing node id.");
+    return {
+      label: "Set node parent",
+      detail: parentId ? `Moved ${id} into ${parentId} from the Agent Canvas CLI.` : `Moved ${id} to the root canvas from the Agent Canvas CLI.`,
+      operations: [{ type: "setNodeParent", id, ...(parentId ? { parentId } : {}), preservePagePosition: true }]
+    };
+  }
+
+  if (commandName === "layout-section") {
+    const [id, ...optionArgs] = commandArgs;
+    if (!id) throw new Error("Missing section id.");
+    const options = parseOptions(optionArgs);
+    const mode = getOption(options, "mode") || "grid";
+    return {
+      label: "Layout section",
+      detail: `Applied ${mode} layout inside ${id} from the Agent Canvas CLI.`,
+      operations: [
+        {
+          type: "layoutSection",
+          id,
+          layout: {
+            mode,
+            gap: readNumber(options, "gap", 28),
+            ...(getOption(options, "columns") ? { columns: readNumber(options, "columns", 3) } : {})
+          }
+        }
+      ]
     };
   }
 
@@ -112,7 +184,7 @@ function parseOptions(args) {
     const key = rawKey.trim();
     const hasInlineValue = typeof inlineValue === "string";
     const nextValue = args[index + 1];
-    const isBooleanFlag = ["avoid-overlap", "codex", "focus", "json", "local", "select", "snap-grid"].includes(key);
+    const isBooleanFlag = ["avoid-overlap", "clip", "codex", "focus", "json", "local", "select", "snap-grid"].includes(key);
     const value = hasInlineValue ? inlineValue : isBooleanFlag ? "true" : nextValue;
 
     if (!key) throw new Error("Empty option name.");
@@ -218,6 +290,9 @@ function printUsage() {
 Usage:
   npm run agent -- send '<CanvasOperation | CanvasOperation[] | { "operations": [...] }>'
   npm run agent -- create-text --id note-1 --title "Agent note" --text "Hello" --avoid-overlap
+  npm run agent -- create-section --id design --section-label "Design Screens" --avoid-overlap
+  npm run agent -- set-parent home-screen design
+  npm run agent -- layout-section design --mode row
   npm run agent -- update-node note-1 '{ "content": { "tone": "note", "text": "Updated" } }'
   npm run agent -- mcp-config --local
   npm run agent -- mcp-config --local --json

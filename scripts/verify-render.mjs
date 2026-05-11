@@ -10,63 +10,58 @@ const page = await browser.newPage({
   deviceScaleFactor: 1
 });
 
-const inspectorShortcut = process.platform === "darwin" ? "Meta+I" : "Control+I";
 await page.goto(url, { waitUntil: "domcontentloaded" });
-await page.evaluate(() => window.localStorage.removeItem("agent-canvas-demo-state-v1"));
+await page.evaluate(() => {
+  window.localStorage.removeItem("agent-canvas-demo-state-v1");
+  window.localStorage.removeItem("agent-canvas-demo-state-v2");
+  window.localStorage.removeItem("agent-canvas-demo-state-v3");
+  window.localStorage.removeItem("agent-canvas-demo-state-v4");
+  window.localStorage.removeItem("agent-canvas-demo-state-v5");
+});
 await page.reload({ waitUntil: "domcontentloaded" });
 await page.locator("[data-agent-canvas-stage]").waitFor();
-await page.locator("[data-agent-node-id='premise']").waitFor();
+await page.locator("[data-agent-node-id='project-summary']").waitFor();
 
-const inspectorHiddenByDefault = await page.locator(".demo-panel").evaluate((node) => node.hasAttribute("hidden"));
-await page.keyboard.press(inspectorShortcut);
-await page.locator(".demo-panel").waitFor({ state: "visible" });
-const inspectorOpensWithShortcut = await page.locator(".demo-panel").isVisible();
-await page.keyboard.press(inspectorShortcut);
-await page.waitForFunction(() => document.querySelector(".demo-panel")?.hasAttribute("hidden"));
-const inspectorClosesWithShortcut = await page.locator(".demo-panel").evaluate((node) => node.hasAttribute("hidden"));
-await page.keyboard.press(inspectorShortcut);
-await page.locator(".demo-panel").waitFor({ state: "visible" });
-
-const premiseSelectedBeforeCanvasClick = await page
-  .locator("[data-agent-node-id='premise']")
+const summarySelectedBeforeCanvasClick = await page
+  .locator("[data-agent-node-id='project-summary']")
   .evaluate((node) => node.classList.contains("is-selected"));
 await page.mouse.click(24, 24);
 const canvasClickDeselects = (await page.locator(".ac-node.is-selected").count()) === 0;
 
-const premiseBounds = await page.locator("[data-agent-node-id='premise']").boundingBox();
-if (!premiseBounds) throw new Error("Could not read premise node bounds.");
+const summaryBounds = await page.locator("[data-agent-node-id='project-summary']").boundingBox();
+if (!summaryBounds) throw new Error("Could not read project summary node bounds.");
 const transformBeforeUnselectedNodeDrag = await page.locator("[data-agent-canvas-stage]").evaluate((node) => getComputedStyle(node).transform);
-await page.mouse.move(premiseBounds.x + 48, premiseBounds.y + 48);
+await page.mouse.move(summaryBounds.x + 48, summaryBounds.y + 48);
 await page.mouse.down();
-await page.mouse.move(premiseBounds.x + 128, premiseBounds.y + 96);
+await page.mouse.move(summaryBounds.x + 128, summaryBounds.y + 96);
 await page.mouse.up();
 const transformAfterUnselectedNodeDrag = await page.locator("[data-agent-canvas-stage]").evaluate((node) => getComputedStyle(node).transform);
 const unselectedNodeDragPans =
   transformAfterUnselectedNodeDrag !== transformBeforeUnselectedNodeDrag && (await page.locator(".ac-node.is-selected").count()) === 0;
 
-const premiseBoundsAfterPan = await page.locator("[data-agent-node-id='premise']").boundingBox();
-if (!premiseBoundsAfterPan) throw new Error("Could not read premise bounds after panning.");
-await page.mouse.click(premiseBoundsAfterPan.x + 48, premiseBoundsAfterPan.y + 48);
-const clickSelectsNode = await page.locator("[data-agent-node-id='premise']").evaluate((node) => node.classList.contains("is-selected"));
-const premiseBoundsAfterClick = await page.locator("[data-agent-node-id='premise']").boundingBox();
-if (!premiseBoundsAfterClick) throw new Error("Could not read premise bounds after selecting.");
+const summaryBoundsAfterPan = await page.locator("[data-agent-node-id='project-summary']").boundingBox();
+if (!summaryBoundsAfterPan) throw new Error("Could not read project summary bounds after panning.");
+await page.mouse.click(summaryBoundsAfterPan.x + 48, summaryBoundsAfterPan.y + 48);
+const clickSelectsNode = await page.locator("[data-agent-node-id='project-summary']").evaluate((node) => node.classList.contains("is-selected"));
+const summaryBoundsAfterClick = await page.locator("[data-agent-node-id='project-summary']").boundingBox();
+if (!summaryBoundsAfterClick) throw new Error("Could not read project summary bounds after selecting.");
 const transformBeforeSelectedNodeDrag = await page.locator("[data-agent-canvas-stage]").evaluate((node) => getComputedStyle(node).transform);
-await page.mouse.move(premiseBoundsAfterClick.x + 48, premiseBoundsAfterClick.y + 48);
+await page.mouse.move(summaryBoundsAfterClick.x + 48, summaryBoundsAfterClick.y + 48);
 await page.mouse.down();
-await page.mouse.move(premiseBoundsAfterClick.x + 128, premiseBoundsAfterClick.y + 96);
+await page.mouse.move(summaryBoundsAfterClick.x + 128, summaryBoundsAfterClick.y + 96);
 await page.mouse.up();
-const premiseBoundsAfterSelectedDrag = await page.locator("[data-agent-node-id='premise']").boundingBox();
+const summaryBoundsAfterSelectedDrag = await page.locator("[data-agent-node-id='project-summary']").boundingBox();
 const transformAfterSelectedNodeDrag = await page.locator("[data-agent-canvas-stage]").evaluate((node) => getComputedStyle(node).transform);
 const selectedNodeCanDrag =
-  premiseBoundsAfterSelectedDrag &&
+  summaryBoundsAfterSelectedDrag &&
   transformAfterSelectedNodeDrag === transformBeforeSelectedNodeDrag &&
-  (Math.abs(premiseBoundsAfterSelectedDrag.x - premiseBoundsAfterClick.x) > 8 ||
-    Math.abs(premiseBoundsAfterSelectedDrag.y - premiseBoundsAfterClick.y) > 8);
-const premiseDocumentRectAfterDrag = await readNodeDocumentRect(page, "premise");
-const selectedDragSnapsToGrid = hasGridAlignedPoint(premiseDocumentRectAfterDrag, 24);
-const resizeHandlesVisible = (await page.locator("[data-agent-node-id='premise'] [data-agent-resize-handle]").count()) === 4;
-const premiseDocumentRectBeforeResize = await readNodeDocumentRect(page, "premise");
-const seResizeHandle = page.locator("[data-agent-node-id='premise'] [data-agent-resize-handle='se']");
+  (Math.abs(summaryBoundsAfterSelectedDrag.x - summaryBoundsAfterClick.x) > 8 ||
+    Math.abs(summaryBoundsAfterSelectedDrag.y - summaryBoundsAfterClick.y) > 8);
+const summaryDocumentRectAfterDrag = await readNodeDocumentRect(page, "project-summary");
+const selectedDragSnapsToGrid = hasGridAlignedPoint(summaryDocumentRectAfterDrag, 24);
+const resizeHandlesVisible = (await page.locator("[data-agent-node-id='project-summary'] [data-agent-resize-handle]").count()) === 4;
+const summaryDocumentRectBeforeResize = await readNodeDocumentRect(page, "project-summary");
+const seResizeHandle = page.locator("[data-agent-node-id='project-summary'] [data-agent-resize-handle='se']");
 let selectedNodeCanResize = false;
 let resizeSnapsToGrid = false;
 let resizeShowsSnapGuide = false;
@@ -81,14 +76,50 @@ if (resizeHandleBounds) {
   await page.waitForTimeout(50);
   snapGuidesClearAfterRelease = (await page.locator("[data-agent-snap-guide]").count()) === 0;
 
-  const premiseDocumentRectAfterResize = await readNodeDocumentRect(page, "premise");
+  const summaryDocumentRectAfterResize = await readNodeDocumentRect(page, "project-summary");
   selectedNodeCanResize =
-    premiseDocumentRectAfterResize.width > premiseDocumentRectBeforeResize.width + 10 &&
-    premiseDocumentRectAfterResize.height > premiseDocumentRectBeforeResize.height + 10;
+    summaryDocumentRectAfterResize.width > summaryDocumentRectBeforeResize.width + 10 &&
+    summaryDocumentRectAfterResize.height > summaryDocumentRectBeforeResize.height + 10;
   resizeSnapsToGrid =
-    isMultiple(premiseDocumentRectAfterResize.x + premiseDocumentRectAfterResize.width, 24) ||
-    isMultiple(premiseDocumentRectAfterResize.y + premiseDocumentRectAfterResize.height, 24);
+    isMultiple(summaryDocumentRectAfterResize.x + summaryDocumentRectAfterResize.width, 24) ||
+    isMultiple(summaryDocumentRectAfterResize.y + summaryDocumentRectAfterResize.height, 24);
 }
+
+const homeFrame = page.locator("[data-agent-node-id='home-mobile'] iframe");
+const homeFramePointerEventsWhenUnselected = await homeFrame.evaluate((node) => getComputedStyle(node).pointerEvents);
+const homeFrameBounds = await homeFrame.boundingBox();
+if (!homeFrameBounds) throw new Error("Could not read home frame bounds.");
+await page.mouse.click(homeFrameBounds.x + homeFrameBounds.width / 2, homeFrameBounds.y + homeFrameBounds.height / 2);
+const homeFrameSelected = await page.locator("[data-agent-node-id='home-mobile']").evaluate((node) => node.classList.contains("is-selected"));
+const homeFramePointerEventsWhenSelected = await homeFrame.evaluate((node) => getComputedStyle(node).pointerEvents);
+const websiteFramesAreInteractiveOnlyWhenSelected =
+  homeFramePointerEventsWhenUnselected === "none" && homeFrameSelected && homeFramePointerEventsWhenSelected === "auto";
+
+await page.mouse.click(24, 24);
+const sectionBoundsBeforeMove = await page.locator("[data-agent-node-id='screens-section']").boundingBox();
+if (!sectionBoundsBeforeMove) throw new Error("Could not read section bounds before moving.");
+const sectionRectBeforeMove = await readNodeDocumentRect(page, "screens-section");
+const homeRectBeforeSectionMove = await readNodeDocumentRect(page, "home-mobile");
+await page.mouse.click(sectionBoundsBeforeMove.x + 24, sectionBoundsBeforeMove.y + 24);
+const sectionClickSelects = await page
+  .locator("[data-agent-node-id='screens-section']")
+  .evaluate((node) => node.classList.contains("is-selected"));
+await page.mouse.move(sectionBoundsBeforeMove.x + 24, sectionBoundsBeforeMove.y + 24);
+await page.mouse.down();
+await page.mouse.move(sectionBoundsBeforeMove.x + 120, sectionBoundsBeforeMove.y + 72);
+await page.mouse.up();
+const sectionRectAfterMove = await readNodeDocumentRect(page, "screens-section");
+const homeRectAfterSectionMove = await readNodeDocumentRect(page, "home-mobile");
+const sectionDx = sectionRectAfterMove.x - sectionRectBeforeMove.x;
+const sectionDy = sectionRectAfterMove.y - sectionRectBeforeMove.y;
+const sectionMoveCarriesChildren =
+  sectionClickSelects &&
+  Math.abs(sectionDx) > 8 &&
+  Math.abs(sectionDy) > 8 &&
+  Math.abs(homeRectAfterSectionMove.x - homeRectBeforeSectionMove.x - sectionDx) < 0.5 &&
+  Math.abs(homeRectAfterSectionMove.y - homeRectBeforeSectionMove.y - sectionDy) < 0.5;
+const tokenNotesRect = await readNodeDocumentRect(page, "token-notes");
+const tokenGuidanceWidthReasonable = tokenNotesRect.width <= 900;
 
 const initialTransform = await page.locator("[data-agent-canvas-stage]").evaluate((node) => getComputedStyle(node).transform);
 await page.getByRole("button", { name: "Zoom in", exact: true }).click();
@@ -112,34 +143,9 @@ const toolbarStyle = await page.locator(".ac-toolbar").evaluate((node) => {
     centerOffset: shellRect ? Math.abs(rect.left + rect.width / 2 - (shellRect.left + shellRect.width / 2)) : 999
   };
 });
-await page.getByRole("button", { name: "Add document", exact: true }).click();
-await page.locator("[data-agent-node-id^='doc-']").first().waitFor();
-await page.getByRole("button", { name: "Context", exact: true }).click();
-const liveTransformBefore = await page.locator("[data-agent-canvas-stage]").evaluate((node) => getComputedStyle(node).transform);
-await page.getByRole("button", { name: "Step", exact: true }).click();
-await page.waitForFunction(() => document.querySelector(".demo-live-readout")?.textContent?.includes("Read visible context"));
-const liveReadoutAfterFirst = await page.locator(".demo-live-readout").textContent();
-const agentNoteUpdating = await page.locator("[data-agent-node-id='agent-note']").textContent();
-await page.getByRole("button", { name: "Step", exact: true }).click();
-await page.locator("[data-agent-node-id='live-synthesis']").waitFor();
-const liveTransformAfter = await page.locator("[data-agent-canvas-stage]").evaluate((node) => getComputedStyle(node).transform);
-const liveContentBefore = await page.locator("[data-agent-node-id='live-synthesis']").textContent();
-await page.getByRole("button", { name: "Step", exact: true }).click();
-await page.waitForFunction(() => document.querySelector("[data-agent-node-id='live-synthesis']")?.textContent?.includes("shared answer"));
-const liveContentAfter = await page.locator("[data-agent-node-id='live-synthesis']").textContent();
-const liveTransformAfterStream = await page.locator("[data-agent-canvas-stage]").evaluate((node) => getComputedStyle(node).transform);
-await page.getByLabel("Follow focus", { exact: true }).check();
-await page.getByRole("button", { name: "Step", exact: true }).click();
-await page.waitForFunction(
-  (previousTransform) => {
-    const stage = document.querySelector("[data-agent-canvas-stage]");
-    return stage && getComputedStyle(stage).transform !== previousTransform;
-  },
-  liveTransformAfterStream
-);
-const liveFollowTransform = await page.locator("[data-agent-canvas-stage]").evaluate((node) => getComputedStyle(node).transform);
+
 await page.waitForFunction(() => {
-  const raw = window.localStorage.getItem("agent-canvas-demo-state-v1");
+  const raw = window.localStorage.getItem("agent-canvas-demo-state-v5");
   const stage = document.querySelector("[data-agent-canvas-stage]");
   if (!raw || !stage) return false;
 
@@ -155,16 +161,14 @@ await page.waitForFunction(() => {
     Math.abs(viewport.y - matrix[5]) < 0.5
   );
 });
-const persistedTransformBeforeReload = liveFollowTransform;
+const persistedTransformBeforeReload = zoomedTransform;
 await page.reload({ waitUntil: "domcontentloaded" });
 await page.locator("[data-agent-canvas-stage]").waitFor();
-await page.locator("[data-agent-node-id='live-synthesis']").waitFor();
 const persistedTransformAfterReload = await page.locator("[data-agent-canvas-stage]").evaluate((node) => getComputedStyle(node).transform);
 
 const result = await page.evaluate(() => {
   const stage = document.querySelector("[data-agent-canvas-stage]");
   const nodes = [...document.querySelectorAll("[data-agent-node-id]")];
-  const context = document.querySelector(".demo-context pre")?.textContent || "";
   const shell = document.querySelector(".ac-shell")?.getBoundingClientRect();
   const shellElement = document.querySelector(".ac-shell");
   const lightProbe = document.createElement("div");
@@ -176,60 +180,47 @@ const result = await page.evaluate(() => {
   const darkCanvasColor = getComputedStyle(darkProbe).getPropertyValue("--ac-canvas");
   lightProbe.remove();
   darkProbe.remove();
-  const nodeAvoidsOverlap = (id) => {
-    const target = document.querySelector(`[data-agent-node-id='${id}']`);
-    if (!target) return false;
-
-    const targetRect = target.getBoundingClientRect();
-    return [...document.querySelectorAll("[data-agent-node-id]")]
-      .filter((node) => node !== target && !node.classList.contains("ac-node--group"))
-      .every((node) => {
-        const rect = node.getBoundingClientRect();
-        return (
-          targetRect.right <= rect.left ||
-          targetRect.left >= rect.right ||
-          targetRect.bottom <= rect.top ||
-          targetRect.top >= rect.bottom
-        );
-      });
-  };
 
   return {
     hasStage: Boolean(stage),
     nodeCount: nodes.length,
-    hasWebsite: Boolean(document.querySelector("[data-agent-node-id='site-preview'] iframe")),
-    hasGeneratedDocument: nodes.some((node) => node.getAttribute("data-agent-node-id")?.startsWith("doc-")),
-    hasLiveSynthesis: Boolean(document.querySelector("[data-agent-node-id='live-synthesis']")),
-    liveSynthesisAvoidsOverlap: nodeAvoidsOverlap("live-synthesis"),
-    liveSynthesisEditing: document.querySelector("[data-agent-node-id='live-synthesis']")?.textContent?.includes("Editing") || false,
-    liveReadoutHasCurrentAndNext: document.querySelector(".demo-live-readout")?.textContent?.includes("Current") || false,
-    liveLogEntries: document.querySelectorAll(".demo-log-entry").length,
-    contextMentionsVisible: context.includes('"visible"'),
+    hasWebsite: Boolean(document.querySelector("[data-agent-node-id='home-mobile'] iframe")),
+    hasHeyFamSummary: document.querySelector("[data-agent-node-id='project-summary']")?.textContent?.includes("HeyFam product summary") || false,
+    hasHeyFamScreens:
+      Boolean(document.querySelector("[data-agent-node-id='home-mobile'] iframe")) &&
+      Boolean(document.querySelector("[data-agent-node-id='home-desktop'] iframe")) &&
+      Boolean(document.querySelector("[data-agent-node-id='create-fam-mobile'] iframe")) &&
+      Boolean(document.querySelector("[data-agent-node-id='create-fam-desktop'] iframe")) &&
+      Boolean(document.querySelector("[data-agent-node-id='fam-wall-mobile'] iframe")) &&
+      Boolean(document.querySelector("[data-agent-node-id='fam-wall-desktop'] iframe")),
+    hasSections:
+      document.querySelectorAll(".ac-node--section").length === 4 &&
+      Boolean(document.querySelector("[data-agent-node-id='screens-section'].ac-node--section")) &&
+      Boolean(document.querySelector("[data-agent-node-id='components-section'].ac-node--section")) &&
+      Boolean(document.querySelector("[data-agent-node-id='tokens-section'].ac-node--section")),
+    hasComponentSpec: document.querySelector("[data-agent-node-id='component-spec']")?.textContent?.includes("Component spec") || false,
+    hasDesignTokens: document.querySelector("[data-agent-node-id='design-tokens']")?.textContent?.includes("Design system") || false,
+    hasDinnerPost: document.querySelector("[data-agent-node-id='fam-wall-mobile']")?.textContent?.includes("Dinner tonight") || false,
+    hasLoggedOutHome: document.querySelector("[data-agent-node-id='home-mobile']")?.textContent?.includes("Create your fam") || false,
+    hasCreateFamFields: document.querySelector("[data-agent-node-id='create-fam-mobile']")?.textContent?.includes("Fam name") || false,
     canvasThemeAttribute: shellElement?.getAttribute("data-agent-canvas-theme") === "system",
     themeVariablesDiffer: lightCanvasColor !== darkCanvasColor,
     shellWidth: shell ? Math.round(shell.width) : 0,
     shellHeight: shell ? Math.round(shell.height) : 0,
-    bodyOverflowX: document.documentElement.scrollWidth > document.documentElement.clientWidth
+    bodyOverflowX: document.documentElement.scrollWidth > document.documentElement.clientWidth,
+    demoPanelRemoved: !document.querySelector(".demo-panel"),
+    demoInspectorToggleRemoved: !document.querySelector(".demo-inspector-toggle")
   };
 });
 
-await page.screenshot({ path: "agent-canvas-demo.png", fullPage: true });
 await browser.close();
 
 console.log(
   JSON.stringify(
     {
       ...result,
-      firstStepShownAsCurrent: liveReadoutAfterFirst?.includes("Read visible context") && liveReadoutAfterFirst?.includes("Open draft container"),
-      touchedNodeShowsUpdating: agentNoteUpdating?.includes("Updating") || false,
-      liveContentStreamed: liveContentBefore !== liveContentAfter,
-      liveStepDoesNotAutofocus: liveTransformBefore === liveTransformAfter && liveTransformAfter === liveTransformAfterStream,
-      liveFollowFocusWorks: liveFollowTransform !== liveTransformAfterStream,
       demoStatePersistsAfterReload: persistedTransformBeforeReload === persistedTransformAfterReload,
-      inspectorHiddenByDefault,
-      inspectorOpensWithShortcut,
-      inspectorClosesWithShortcut,
-      canvasClickDeselects: premiseSelectedBeforeCanvasClick && canvasClickDeselects,
+      canvasClickDeselects: summarySelectedBeforeCanvasClick && canvasClickDeselects,
       unselectedNodeDragPans,
       clickSelectsNode,
       selectedNodeCanDrag,
@@ -239,6 +230,10 @@ console.log(
       resizeSnapsToGrid,
       resizeShowsSnapGuide,
       snapGuidesClearAfterRelease,
+      websiteFramesAreInteractiveOnlyWhenSelected,
+      sectionClickSelects,
+      sectionMoveCarriesChildren,
+      tokenGuidanceWidthReasonable,
       hasToolbarTidyButtons,
       toolbarHasTooltips,
       toolbarIsCompact: toolbarStyle.buttonHeight <= 32,

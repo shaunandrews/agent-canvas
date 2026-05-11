@@ -1,5 +1,6 @@
 import type { CanvasDocument, CanvasLayoutOptions, CanvasNode, CanvasOperation, CanvasPlacementPolicy, CanvasRect } from "../types";
-import { getNodesBounds, nodeToRect, rectsIntersect } from "./geometry";
+import { rectsIntersect } from "./geometry";
+import { getNodePageRect, getNodesPageBounds, toParentPoint } from "./hierarchy";
 
 const DEFAULT_GAP = 24;
 const DEFAULT_GRID_SIZE = 24;
@@ -23,11 +24,11 @@ export function placeCanvasNode(
   const gridSize = placement.gridSize || DEFAULT_GRID_SIZE;
 
   if (mode === "freeform") return node;
-  if (mode === "snap-grid") return snapNode(node, gridSize);
+  if (mode === "snap-grid") return snapNodeToPageGrid(document, node, gridSize);
 
   const referenceNodes = getReferenceNodes(document, placement.referenceNodeIds, selectedNodeIds);
   const positioned = positionByMode(document, node, placement, referenceNodes, selectedNodeIds);
-  const snapped = placement.gridSize ? snapNode(positioned, gridSize) : positioned;
+  const snapped = placement.gridSize ? snapNodeToPageGrid(document, positioned, gridSize) : positioned;
 
   return findNonOverlappingNode(document, snapped, placement);
 }
@@ -37,12 +38,12 @@ export function layoutCanvasNodes(document: CanvasDocument, ids: string[], layou
   if (!nodes.length) return [];
 
   const gap = layout.gap ?? DEFAULT_GAP;
-  const origin = layout.origin || getNodesBounds(nodes);
+  const origin = layout.origin || getNodesPageBounds(document, nodes);
   const mode = layout.mode === "list" ? "column" : layout.mode;
 
-  if (mode === "row") return layoutRow(nodes, origin, gap);
-  if (mode === "column") return layoutColumn(nodes, origin, gap);
-  return layoutGrid(nodes, origin, gap, layout.columns);
+  if (mode === "row") return layoutRow(document, nodes, origin, gap);
+  if (mode === "column") return layoutColumn(document, nodes, origin, gap);
+  return layoutGrid(document, nodes, origin, gap, layout.columns);
 }
 
 export function tidyCanvasNodes(document: CanvasDocument, ids: string[], layout?: CanvasLayoutOptions): CanvasOperation[] {
@@ -72,29 +73,36 @@ function positionByMode(
   if (mode === "near-selection") {
     const referenceId = placement.referenceNodeIds?.at(-1) || selectedNodeIds.at(-1);
     const referenceNode = document.nodes.find((item) => item.id === referenceId) || referenceNodes.at(-1);
-    return referenceNode ? moveNode(node, referenceNode.x + referenceNode.width + gap, referenceNode.y) : node;
+    if (!referenceNode) return node;
+    const rect = getNodePageRect(document, referenceNode);
+    return moveNodeToPage(document, node, rect.x + rect.width + gap, rect.y);
   }
 
   if (mode === "append-row") {
-    if (!referenceNodes.length) return moveNode(node, origin.x, origin.y);
-    const bounds = getNodesBounds(referenceNodes);
-    return moveNode(node, bounds.x + bounds.width + gap, bounds.y);
+    if (!referenceNodes.length) return moveNodeToPage(document, node, origin.x, origin.y);
+    const bounds = getNodesPageBounds(document, referenceNodes);
+    return moveNodeToPage(document, node, bounds.x + bounds.width + gap, bounds.y);
   }
 
   if (mode === "append-column") {
-    if (!referenceNodes.length) return moveNode(node, origin.x, origin.y);
-    const bounds = getNodesBounds(referenceNodes);
-    return moveNode(node, bounds.x, bounds.y + bounds.height + gap);
+    if (!referenceNodes.length) return moveNodeToPage(document, node, origin.x, origin.y);
+    const bounds = getNodesPageBounds(document, referenceNodes);
+    return moveNodeToPage(document, node, bounds.x, bounds.y + bounds.height + gap);
   }
 
   if (mode === "append-grid") {
-    if (!referenceNodes.length) return moveNode(node, origin.x, origin.y);
+    if (!referenceNodes.length) return moveNodeToPage(document, node, origin.x, origin.y);
     const columns = Math.max(1, placement.columns || Math.ceil(Math.sqrt(referenceNodes.length + 1)));
-    const bounds = getNodesBounds(referenceNodes);
+    const bounds = getNodesPageBounds(document, referenceNodes);
     const cellWidth = Math.max(node.width, ...referenceNodes.map((item) => item.width));
     const cellHeight = Math.max(node.height, ...referenceNodes.map((item) => item.height));
     const index = referenceNodes.length;
-    return moveNode(node, bounds.x + (index % columns) * (cellWidth + gap), bounds.y + Math.floor(index / columns) * (cellHeight + gap));
+    return moveNodeToPage(
+      document,
+      node,
+      bounds.x + (index % columns) * (cellWidth + gap),
+      bounds.y + Math.floor(index / columns) * (cellHeight + gap)
+    );
   }
 
   return node;
@@ -107,16 +115,20 @@ function findNonOverlappingNode(document: CanvasDocument, node: CanvasNode, plac
   const gridSize = placement.gridSize || DEFAULT_GRID_SIZE;
   const maxAttempts = placement.maxAttempts || 900;
   const anchors = document.nodes
-    .filter((item) => item.id !== node.id && item.type !== "group")
-    .flatMap((item) => [
-      { x: item.x + item.width + gap, y: item.y },
-      { x: item.x, y: item.y + item.height + gap },
-      { x: item.x + item.width + gap, y: item.y + item.height + gap }
-    ])
-    .sort((a, b) => distanceSquared(a, node) - distanceSquared(b, node));
+    .filter((item) => item.id !== node.id && item.type !== "section")
+    .flatMap((item) => {
+      const rect = getNodePageRect(document, item);
+      return [
+        { x: rect.x + rect.width + gap, y: rect.y },
+        { x: rect.x, y: rect.y + rect.height + gap },
+        { x: rect.x + rect.width + gap, y: rect.y + rect.height + gap }
+      ];
+    })
+    .sort((a, b) => distanceSquared(document, a, node) - distanceSquared(document, b, node));
 
   for (const anchor of anchors) {
-    const candidate = placement.gridSize ? snapNode(moveNode(node, anchor.x, anchor.y), gridSize) : moveNode(node, anchor.x, anchor.y);
+    const moved = moveNodeToPage(document, node, anchor.x, anchor.y);
+    const candidate = placement.gridSize ? snapNodeToPageGrid(document, moved, gridSize) : moved;
     if (!hasCollision(document, candidate, placement)) return candidate;
   }
 
@@ -129,7 +141,8 @@ function findNonOverlappingNode(document: CanvasDocument, node: CanvasNode, plac
         attempts += 1;
         if (attempts > maxAttempts) return node;
 
-        const candidate = moveNode(node, node.x + dx * gridSize, node.y + dy * gridSize);
+        const rect = getNodePageRect(document, node);
+        const candidate = moveNodeToPage(document, node, rect.x + dx * gridSize, rect.y + dy * gridSize);
         if (!hasCollision(document, candidate, placement)) return candidate;
       }
     }
@@ -139,40 +152,51 @@ function findNonOverlappingNode(document: CanvasDocument, node: CanvasNode, plac
 }
 
 function hasCollision(document: CanvasDocument, node: CanvasNode, placement: CanvasPlacementPolicy) {
-  if (placement.bounds && !rectContains(placement.bounds, nodeToRect(node))) return true;
+  const rect = getNodePageRect(document, node);
+  if (placement.bounds && !rectContains(placement.bounds, rect)) return true;
 
   const gap = placement.gap ?? DEFAULT_GAP;
-  const rect = nodeToRect(node);
   return document.nodes
-    .filter((item) => item.id !== node.id && item.type !== "group")
-    .some((item) => rectsIntersect(rect, inflateRect(nodeToRect(item), gap)));
+    .filter((item) => item.id !== node.id && item.type !== "section")
+    .some((item) => rectsIntersect(rect, inflateRect(getNodePageRect(document, item), gap)));
 }
 
-function layoutRow(nodes: CanvasNode[], origin: Pick<CanvasRect, "x" | "y">, gap: number): CanvasOperation[] {
+function layoutRow(document: CanvasDocument, nodes: CanvasNode[], origin: Pick<CanvasRect, "x" | "y">, gap: number): CanvasOperation[] {
   let x = origin.x;
   return nodes.map((node) => {
-    const operation = moveOperation(node, x, origin.y);
+    const operation = moveOperationToPage(document, node, x, origin.y);
     x += node.width + gap;
     return operation;
   });
 }
 
-function layoutColumn(nodes: CanvasNode[], origin: Pick<CanvasRect, "x" | "y">, gap: number): CanvasOperation[] {
+function layoutColumn(document: CanvasDocument, nodes: CanvasNode[], origin: Pick<CanvasRect, "x" | "y">, gap: number): CanvasOperation[] {
   let y = origin.y;
   return nodes.map((node) => {
-    const operation = moveOperation(node, origin.x, y);
+    const operation = moveOperationToPage(document, node, origin.x, y);
     y += node.height + gap;
     return operation;
   });
 }
 
-function layoutGrid(nodes: CanvasNode[], origin: Pick<CanvasRect, "x" | "y">, gap: number, columns?: number): CanvasOperation[] {
+function layoutGrid(
+  document: CanvasDocument,
+  nodes: CanvasNode[],
+  origin: Pick<CanvasRect, "x" | "y">,
+  gap: number,
+  columns?: number
+): CanvasOperation[] {
   const resolvedColumns = Math.max(1, columns || Math.ceil(Math.sqrt(nodes.length)));
   const cellWidth = Math.max(...nodes.map((node) => node.width));
   const cellHeight = Math.max(...nodes.map((node) => node.height));
 
   return nodes.map((node, index) =>
-    moveOperation(node, origin.x + (index % resolvedColumns) * (cellWidth + gap), origin.y + Math.floor(index / resolvedColumns) * (cellHeight + gap))
+    moveOperationToPage(
+      document,
+      node,
+      origin.x + (index % resolvedColumns) * (cellWidth + gap),
+      origin.y + Math.floor(index / resolvedColumns) * (cellHeight + gap)
+    )
   );
 }
 
@@ -186,24 +210,31 @@ function orderedNodes(document: CanvasDocument, ids: string[]) {
   const idSet = new Set(ids);
   return document.nodes
     .filter((node) => idSet.has(node.id))
-    .sort((a, b) => a.y - b.y || a.x - b.x || a.id.localeCompare(b.id));
+    .sort((a, b) => {
+      const aRect = getNodePageRect(document, a);
+      const bRect = getNodePageRect(document, b);
+      return aRect.y - bRect.y || aRect.x - bRect.x || a.id.localeCompare(b.id);
+    });
 }
 
-function snapNode<TNode extends CanvasNode>(node: TNode, gridSize: number): TNode {
+function snapNodeToPageGrid<TNode extends CanvasNode>(document: CanvasDocument, node: TNode, gridSize: number): TNode {
   if (gridSize <= 0) return node;
-  return { ...node, x: snap(node.x, gridSize), y: snap(node.y, gridSize) };
+  const rect = getNodePageRect(document, node);
+  return moveNodeToPage(document, node, snap(rect.x, gridSize), snap(rect.y, gridSize));
 }
 
 function snap(value: number, gridSize: number) {
   return Math.round(value / gridSize) * gridSize;
 }
 
-function moveNode<TNode extends CanvasNode>(node: TNode, x: number, y: number): TNode {
-  return { ...node, x, y };
+function moveNodeToPage<TNode extends CanvasNode>(document: CanvasDocument, node: TNode, x: number, y: number): TNode {
+  const localPoint = toParentPoint(document, node.parentId, { x, y });
+  return { ...node, x: localPoint.x, y: localPoint.y };
 }
 
-function moveOperation(node: CanvasNode, x: number, y: number): CanvasOperation {
-  return { type: "updateNode", id: node.id, patch: { x, y } };
+function moveOperationToPage(document: CanvasDocument, node: CanvasNode, x: number, y: number): CanvasOperation {
+  const localPoint = toParentPoint(document, node.parentId, { x, y });
+  return { type: "updateNode", id: node.id, patch: { x: localPoint.x, y: localPoint.y } };
 }
 
 function inflateRect(rect: CanvasRect, amount: number): CanvasRect {
@@ -224,6 +255,7 @@ function rectContains(container: CanvasRect, rect: CanvasRect) {
   );
 }
 
-function distanceSquared(point: Pick<CanvasRect, "x" | "y">, node: CanvasNode) {
-  return (point.x - node.x) ** 2 + (point.y - node.y) ** 2;
+function distanceSquared(document: CanvasDocument, point: Pick<CanvasRect, "x" | "y">, node: CanvasNode) {
+  const rect = getNodePageRect(document, node);
+  return (point.x - rect.x) ** 2 + (point.y - rect.y) ** 2;
 }
